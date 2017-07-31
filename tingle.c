@@ -545,10 +545,10 @@ bsd_generic_temperature_state(int * temperature)
                 continue;
         }
         if (!strcmp("cpu0", snsrdev.xname)) {
-            sensor_name = strdup("cpu0");
+            //sensor_name = strdup("cpu0");
             break;
         } else if (!strcmp("km0", snsrdev.xname)) {
-            sensor_name = strdup("km0");
+            //sensor_name = strdup("km0");
             break;
         }
     }
