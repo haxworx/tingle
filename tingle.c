@@ -23,7 +23,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-// Build : cc -lm (file) -o (output)
+/* Build : cc -lm (file) -o (output) */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -362,7 +362,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     memory->swap_total = (result / 1024);
 
     struct xswdev xsw;
-    // previous mib is important for this one...
+    /* previous mib is important for this one...*/
 
     while (i++) {
         mib[2] = i;
@@ -396,7 +396,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     if (sysctl(bcstats_mib, 3, &bcstats, &len, NULL, 0) == -1)
         return;
 
-    // Don't fail if there's not swap!
+    /* Don't fail if there's not swap! */
     nswap = swapctl(SWAP_NSWAP, 0, 0);
     if (nswap == 0)
         goto swap_out;
@@ -409,7 +409,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     if (rnswap == -1)
         goto swap_out;
 
-    for (i = 0; i < nswap; i++) // nswap; i++)
+    for (i = 0; i < nswap; i++)
     {
         if (swdev[i].se_flags & SWF_ENABLE) {
             memory->swap_used += (swdev[i].se_inuse / (1024 / DEV_BSIZE));
@@ -626,6 +626,7 @@ bsd_generic_power_mibs_get(power_t * power)
         power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
         sysctlnametomib("hw.acpi.battery.life",
                         power->bat_mibs[power->battery_index], &len);
+        power->battery_index = 1;
         result++;
     }
 
@@ -724,7 +725,6 @@ bsd_generic_power_state(power_t * power)
     power->percent = (int) percent;
     power->have_ac = have_ac;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
-    power->battery_index = 1;
     len = sizeof(value);
     if ((sysctl(power->bat_mibs[0], 4, &value, &len, NULL, 0)) == -1) {
         return;
