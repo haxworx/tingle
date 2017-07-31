@@ -53,7 +53,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 /* cp_times2 specification is not finalised??? 
-   there is a good readon for 6 but I don't remember! 
+   there is a good reason for 6 but I don't remember! 
 */
 # define CPU_STATES 6
 #endif
