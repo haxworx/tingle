@@ -803,27 +803,37 @@ results_cpu(cpu_core_t ** cores, int cpu_count)
 static void
 results_mem(meminfo_t * mem, int flags)
 {
+    unsigned long total, used, cached, buffered;
+    unsigned long shared, swap_total, swap_used;
+
+    total = mem->total;
+    used  = mem->used;
+    cached = mem->cached;
+    buffered = mem->buffered;
+    shared = mem->shared;
+    swap_total = mem->swap_total;
+    swap_used = mem->swap_used;
     if (flags & RESULTS_MEM_MB) {
-        _memsize_kb_to_mb(&mem->total);
-        _memsize_kb_to_mb(&mem->used);
-        _memsize_kb_to_mb(&mem->cached);
-        _memsize_kb_to_mb(&mem->buffered);
-        _memsize_kb_to_mb(&mem->shared);
-        _memsize_kb_to_mb(&mem->swap_total);
-        _memsize_kb_to_mb(&mem->swap_used);
+        _memsize_kb_to_mb(&total);
+        _memsize_kb_to_mb(&used);
+        _memsize_kb_to_mb(&cached);
+        _memsize_kb_to_mb(&buffered);
+        _memsize_kb_to_mb(&shared);
+        _memsize_kb_to_mb(&swap_total);
+        _memsize_kb_to_mb(&swap_used);
     } else if (flags & RESULTS_MEM_GB) {
-        _memsize_kb_to_gb(&mem->total);
-        _memsize_kb_to_gb(&mem->used);
-        _memsize_kb_to_gb(&mem->cached);
-        _memsize_kb_to_gb(&mem->buffered);
-        _memsize_kb_to_gb(&mem->shared);
-        _memsize_kb_to_gb(&mem->swap_total);
-        _memsize_kb_to_gb(&mem->swap_used);
+        _memsize_kb_to_gb(&total);
+        _memsize_kb_to_gb(&used);
+        _memsize_kb_to_gb(&cached);
+        _memsize_kb_to_gb(&buffered);
+        _memsize_kb_to_gb(&shared);
+        _memsize_kb_to_gb(&swap_total);
+        _memsize_kb_to_gb(&swap_used);
     }
 
    printf("%lu %lu %lu %lu %lu %lu %lu\n",
-          mem->total, mem->used, mem->cached, mem->buffered, mem->shared,
-          mem->swap_total, mem->swap_used);
+          total, used, cached, buffered, shared,
+          swap_total, swap_used);
 }
 
 static void
@@ -847,22 +857,23 @@ results_mixer(mixer_t * mixer)
 }
 
 static void
-display_results(results_t * results, int flags)
+display_results(results_t * results, int *order, int count)
 {
+    int i, flags;
+
+    for (i = 0; i < count; i++) {
+    flags = order[i];
     if (flags & RESULTS_CPU)
         results_cpu(results->cores, results->cpu_count);
-
-    if (flags & RESULTS_MEM)
+    else if (flags & RESULTS_MEM)
         results_mem(&results->memory, flags);
-
-    if (flags & RESULTS_PWR)
+    else if (flags & RESULTS_PWR)
         results_power(&results->power);
-
-    if (flags & RESULTS_TMP)
+    else if (flags & RESULTS_TMP)
         results_temperature(results->temperature);
-
-    if (flags & RESULTS_AUD)
+    else if (flags & RESULTS_AUD)
         results_mixer(&results->mixer);
+    }
 }
 
 int main(int argc, char **argv)
@@ -870,8 +881,11 @@ int main(int argc, char **argv)
     results_t results;
     bool have_battery;
     bool statusline = false;
+    int i, j = 0;
     int flags = 0;
-    int i;
+    int order[argc];
+
+    memset(&order, 0, sizeof(int) * (argc));
 
     for (i = 1; i < argc; i++) {
         if ((!strcmp(argv[i], "-h")) ||
@@ -896,24 +910,28 @@ int main(int argc, char **argv)
         }
 
         if (!strcmp(argv[i], "-c"))
-            flags |= RESULTS_CPU;
-        if (!strcmp(argv[i], "-m"))
-            flags |= RESULTS_MEM;
-        if (!strcmp(argv[i], "-M"))
-            flags |= RESULTS_MEM | RESULTS_MEM_MB;
-        if (!strcmp(argv[i], "-G"))
-            flags |= RESULTS_MEM | RESULTS_MEM_GB;
-        if (!strcmp(argv[i], "-p"))
-            flags |= RESULTS_PWR;
-        if (!strcmp(argv[i], "-t"))
-            flags |= RESULTS_TMP;
-        if (!strcmp(argv[i], "-a"))
-            flags |= RESULTS_AUD;
-        if (!strcmp(argv[i], "-s")) {
-            flags |= RESULTS_ALL;
+            order[j] |= RESULTS_CPU;
+        else if (!strcmp(argv[i], "-m"))
+            order[j] |= RESULTS_MEM;
+        else if (!strcmp(argv[i], "-M"))
+            order[j] |= RESULTS_MEM | RESULTS_MEM_MB;
+        else if (!strcmp(argv[i], "-G"))
+            order[j] |= RESULTS_MEM | RESULTS_MEM_GB;
+        else if (!strcmp(argv[i], "-p"))
+            order[j] |= RESULTS_PWR;
+        else if (!strcmp(argv[i], "-t"))
+            order[j] |= RESULTS_TMP;
+        else if (!strcmp(argv[i], "-a"))
+            order[j] |= RESULTS_AUD;
+        else if (!strcmp(argv[i], "-s")) {
+            order[j] |= RESULTS_ALL;
             statusline = true;
         }
+        j++;
     }
+
+    for (i = 0; i < j ; i++)
+        flags |= order[i];
 
     if (flags == 0) {
         flags |= RESULTS_ALL;
@@ -922,9 +940,8 @@ int main(int argc, char **argv)
 
     memset(&results, 0, sizeof(results_t));
 
-    if (flags & RESULTS_CPU) {
+    if (flags & RESULTS_CPU)
         results.cores = bsd_generic_cpuinfo(&results.cpu_count);
-    }
 
     if (flags & RESULTS_MEM)
         bsd_generic_meminfo(&results.memory);
@@ -945,7 +962,7 @@ int main(int argc, char **argv)
     if (statusline)
         statusbar(&results);
     else
-        display_results(&results, flags);
+        display_results(&results, order, j);
 
     if (flags & RESULTS_CPU) {
         for (i = 0; i < results.cpu_count; i++)
