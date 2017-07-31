@@ -52,12 +52,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
+/* cp_times2 specification is not finalised??? 
+   there is a good readon for 6 but I don't remember! 
+*/
 # define CPU_STATES 6
 #endif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 # define CPU_STATES 5
 #endif
+
+/* For filtering the requests and outputs */
+#define RESULTS_CPU 0x01
+#define RESULTS_MEM 0x02
+#define RESULTS_PWR 0x04
+#define RESULTS_TMP 0x08
+#define RESULTS_AUD 0x10
+#define RESULTS_ALL 0x1f
 
 #define MAX_BATTERIES 5
 
@@ -104,7 +115,8 @@ struct results_t {
     uint8_t temperature;
 };
 
-static int cpu_count(void)
+static int
+cpu_count(void)
 {
     int cores = 0;
 #if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
@@ -135,14 +147,16 @@ _sysctlfromname(const char *name, void *mib, int depth, size_t * len)
 }
 #endif
 
-void _memsize_bytes_to_kb(unsigned long *bytes)
+static void
+_memsize_bytes_to_kb(unsigned long *bytes)
 {
     *bytes = (unsigned int) *bytes >> 10;
 }
 
 #define _memsize_kb_to_mb _memsize_bytes_to_kb
 
-static void bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
+static void
+bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 {
     size_t size;
     int percent, diff_total, diff_idle;
@@ -259,7 +273,8 @@ static void bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 #endif
 }
 
-static cpu_core_t **bsd_generic_cpuinfo(int *ncpu)
+static cpu_core_t **
+bsd_generic_cpuinfo(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -278,7 +293,8 @@ static cpu_core_t **bsd_generic_cpuinfo(int *ncpu)
     return (cores);
 }
 
-static void bsd_generic_meminfo(meminfo_t * memory)
+static void
+bsd_generic_meminfo(meminfo_t * memory)
 {
     size_t len;
     int i = 0;
@@ -415,7 +431,8 @@ static void bsd_generic_meminfo(meminfo_t * memory)
 #endif
 }
 
-static int bsd_generic_audio_state_master(mixer_t * mixer)
+static int
+bsd_generic_audio_state_master(mixer_t * mixer)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int i, fd, devn;
@@ -501,7 +518,8 @@ static int bsd_generic_audio_state_master(mixer_t * mixer)
 
 }
 
-static void bsd_generic_temperature_state(uint8_t * temperature)
+static void
+bsd_generic_temperature_state(uint8_t * temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mib[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -556,8 +574,8 @@ static void bsd_generic_temperature_state(uint8_t * temperature)
 #endif
 }
 
-
-static int bsd_generic_power_mibs_get(power_t * power)
+static int
+bsd_generic_power_mibs_get(power_t * power)
 {
     int result = 0;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -615,7 +633,8 @@ static int bsd_generic_power_mibs_get(power_t * power)
 }
 
 
-static void bsd_generic_battery_state_get(int *mib, power_t * power)
+static void
+bsd_generic_battery_state_get(int *mib, power_t * power)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double last_full_charge = 0;
@@ -661,7 +680,8 @@ static void bsd_generic_battery_state_get(int *mib, power_t * power)
 #endif
 }
 
-static void bsd_generic_power_state(power_t * power)
+static void
+bsd_generic_power_state(power_t * power)
 {
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -712,7 +732,8 @@ static void bsd_generic_power_state(power_t * power)
 #endif
 }
 
-static int percentage(int value, int max)
+static int
+percentage(int value, int max)
 {
     double avg = (max / 100.0);
     double tmp = value / avg;
@@ -722,7 +743,8 @@ static int percentage(int value, int max)
     return (result);
 }
 
-static void statusbar(results_t * results)
+static void
+statusbar(results_t * results)
 {
     int i;
     int cpu_percent = 0;
@@ -762,14 +784,8 @@ static void statusbar(results_t * results)
     printf(".\n");
 }
 
-#define RESULTS_CPU 0x01
-#define RESULTS_MEM 0x02
-#define RESULTS_PWR 0x04
-#define RESULTS_TMP 0x08
-#define RESULTS_AUD 0x10
-#define RESULTS_ALL 0x1f
-
-void results_cpu(cpu_core_t ** cores, int cpu_count)
+static void
+results_cpu(cpu_core_t ** cores, int cpu_count)
 {
     int i;
     for (i = 0; i < cpu_count; i++)
@@ -778,35 +794,40 @@ void results_cpu(cpu_core_t ** cores, int cpu_count)
     printf("\n");
 }
 
-void results_mem(meminfo_t * mem)
+static void
+results_mem(meminfo_t * mem)
 {
     printf("%lu %lu %lu %lu %lu %lu %lu\n", mem->total,
            mem->used, mem->cached, mem->buffered, mem->shared,
            mem->swap_total, mem->swap_used);
-
 }
 
-void results_pwr(power_t * power)
+static void
+results_pwr(power_t * power)
 {
     printf("%d %d \n", power->have_ac, power->percent);
 }
 
-void results_tmp(int temp)
+static void
+results_tmp(int temp)
 {
     printf("%d\n", temp);
 }
 
-void results_audio(mixer_t * mixer)
+static void
+results_mixer(mixer_t * mixer)
 {
     if (!mixer->enabled)
         return;
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
-void display_results(results_t * results, int flags)
+static void
+display_results(results_t * results, int flags)
 {
     if (flags & RESULTS_CPU)
         results_cpu(results->cores, results->cpu_count);
+
     if (flags & RESULTS_MEM)
         results_mem(&results->memory);
 
@@ -817,7 +838,7 @@ void display_results(results_t * results, int flags)
         results_tmp(results->temperature);
 
     if (flags & RESULTS_AUD)
-        results_audio(&results->mixer);
+        results_mixer(&results->mixer);
 }
 
 int main(int argc, char **argv)
