@@ -624,7 +624,7 @@ bsd_generic_power_mibs_get(power_t * power)
     }
 
     if ((sysctlbyname("hw.acpi.acline", NULL, &len, NULL, 0)) != -1) {
-        sysctlnametomib("hw.acpi.acline", mibs, &len);
+        sysctlnametomib("hw.acpi.acline", power->ac_mibs, &len);
     }
 #endif
 
@@ -701,7 +701,7 @@ bsd_generic_power_state(power_t * power)
         have_ac = (int) snsr.value;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     len = sizeof(value);
-    if ((sysctl(mibs, 3, &value, &len, NULL, 0)) == -1) {
+    if ((sysctl(power->ac_mibs, 3, &value, &len, NULL, 0)) == -1) {
         return;
     }
     power->have_ac = value;
@@ -723,7 +723,7 @@ bsd_generic_power_state(power_t * power)
     power->have_ac = have_ac;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     len = sizeof(value);
-    if ((sysctl(mibs[0], 4, &value, &len, NULL, 0)) == -1) {
+    if ((sysctl(power->bat_mibs[0], 4, &value, &len, NULL, 0)) == -1) {
         return;
     }
 
