@@ -1,6 +1,6 @@
 PROGRAM=tingle
 SOURCES=tingle.c
-CFLAGS=-O2 -Wall -Werror -pedantic
+CFLAGS=-O2 -Wall -Werror -pedantic -std=c99
 LDFLAGS=-lm
 default:
 	-mkdir $(HOME)/bin
