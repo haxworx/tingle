@@ -311,7 +311,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     int total_pages = 0, free_pages = 0, inactive_pages = 0;
     long int result = 0;
     int page_size = getpagesize();
-    int mib[4] = { 0, 0, 0, 0 };
+    int mib[4];
 
     mib[0] = CTL_HW;
     mib[1] = HW_PHYSMEM;
@@ -941,7 +941,7 @@ int main(int argc, char **argv)
     memset(&results, 0, sizeof(results_t));
  
     if (flags & RESULTS_CPU)
-            results.cores = bsd_generic_cpuinfo(&results.cpu_count);
+        results.cores = bsd_generic_cpuinfo(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
         bsd_generic_meminfo(&results.memory);
