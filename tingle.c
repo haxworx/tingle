@@ -72,8 +72,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define MAX_BATTERIES 5
 
-int mibs[5];
-int *bat_mibs[MAX_BATTERIES];
 
 typedef struct {
     int percent;
@@ -92,6 +90,8 @@ typedef struct {
 } meminfo_t;
 
 typedef struct {
+    int *bat_mibs[MAX_BATTERIES];
+    int ac_mibs[5];
     bool have_ac;
     int battery_index;
     uint8_t percent;
@@ -522,9 +522,8 @@ static void
 bsd_generic_temperature_state(uint8_t * temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-    int mib[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
+    int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
     int devn, numt;
-    memcpy(&mibs, mib, sizeof(int) * 5);
     struct sensor snsr;
     size_t slen = sizeof(struct sensor);
     struct sensordev snsrdev;
@@ -601,8 +600,8 @@ bsd_generic_power_mibs_get(power_t * power)
             char buf[64];
             snprintf(buf, sizeof(buf), "acpibat%d", i);
             if (!strcmp(buf, snsrdev.xname)) {
-                bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
-                int *tmp = bat_mibs[power->battery_index++];
+                power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
+                int *tmp = power->bat_mibs[power->battery_index++];
                 tmp[0] = mib[0];
                 tmp[1] = mib[1];
                 tmp[2] = mib[2];
@@ -611,16 +610,16 @@ bsd_generic_power_mibs_get(power_t * power)
         }
 
         if (!strcmp("acpiac0", snsrdev.xname)) {
-            mibs[0] = mib[0];
-            mibs[1] = mib[1];
-            mibs[2] = mib[2];
+            power->ac_mibs[0] = mib[0];
+            power->ac_mibs[1] = mib[1];
+            power->ac_mibs[2] = mib[2];
         }
     }
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     if ((sysctlbyname("hw.acpi.battery.life", NULL, &len, NULL, 0)) != -1) {
-        bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
+        power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
         sysctlnametomib("hw.acpi.battery.life",
-                        bat_mibs[power->battery_index], &len);
+                        power->bat_mibs[power->battery_index], &len);
         result++;
     }
 
@@ -686,6 +685,7 @@ bsd_generic_power_state(power_t * power)
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     struct sensor snsr;
+    int mibs[5];
     int have_ac = 0;
     size_t slen = sizeof(struct sensor);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
@@ -694,10 +694,10 @@ bsd_generic_power_state(power_t * power)
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-    mibs[3] = 9;
-    mibs[4] = 0;
+    power->ac_mibs[3] = 9;
+    power->ac_mibs[4] = 0;
 
-    if (sysctl(mibs, 5, &snsr, &slen, NULL, 0) != -1)
+    if (sysctl(power->ac_mibs, 5, &snsr, &slen, NULL, 0) != -1)
         have_ac = (int) snsr.value;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     len = sizeof(value);
@@ -709,11 +709,11 @@ bsd_generic_power_state(power_t * power)
 
     // get batteries here
     for (i = 0; i < power->battery_index; i++) {
-        bsd_generic_battery_state_get(bat_mibs[i], power);
+        bsd_generic_battery_state_get(power->bat_mibs[i], power);
     }
 
     for (i = 0; i < power->battery_index; i++)
-        free(bat_mibs[i]);
+        free(power->bat_mibs[i]);
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double percent =
@@ -723,7 +723,7 @@ bsd_generic_power_state(power_t * power)
     power->have_ac = have_ac;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     len = sizeof(value);
-    if ((sysctl(bat_mibs[0], 4, &value, &len, NULL, 0)) == -1) {
+    if ((sysctl(mibs[0], 4, &value, &len, NULL, 0)) == -1) {
         return;
     }
 
