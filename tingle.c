@@ -69,12 +69,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_TMP 0x08
 #define RESULTS_AUD 0x10
 #define RESULTS_ALL 0x1f
+#define RESULTS_MEM_MB 0x20
+#define RESULTS_MEM_GB 0x40
 
 #define MAX_BATTERIES 5
-
+#define INVALID_TEMP -999
 
 typedef struct {
-    int percent;
+    float percent;
     unsigned long total;
     unsigned long idle;
 } cpu_core_t;
@@ -112,7 +114,7 @@ struct results_t {
     meminfo_t memory;
     power_t power;
     mixer_t mixer;
-    uint8_t temperature;
+    int temperature;
 };
 
 static int
@@ -156,12 +158,18 @@ _memsize_bytes_to_kb(unsigned long *bytes)
 #define _memsize_kb_to_mb _memsize_bytes_to_kb
 
 static void
-bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
+_memsize_kb_to_gb(unsigned long *bytes)
+{
+    *bytes = (unsigned int) *bytes >> 20;
+}
+
+static void
+_bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 {
     size_t size;
-    int percent, diff_total, diff_idle;
+    int diff_total, diff_idle;
     int i, j;
-    double ratio;
+    double ratio, percent;
     unsigned long total, idle, used;
     cpu_core_t *core;
 #if defined(__FreeBSD__) || defined(__DragonFly__)
@@ -286,9 +294,9 @@ bsd_generic_cpuinfo(int *ncpu)
     for (i = 0; i < *ncpu; i++)
         cores[i] = calloc(1, sizeof(cpu_core_t));
 
-    bsd_cpuinfo(cores, *ncpu);
+    _bsd_cpuinfo(cores, *ncpu);
     usleep(1000000);
-    bsd_cpuinfo(cores, *ncpu);
+    _bsd_cpuinfo(cores, *ncpu);
 
     return (cores);
 }
@@ -519,7 +527,7 @@ bsd_generic_audio_state_master(mixer_t * mixer)
 }
 
 static void
-bsd_generic_temperature_state(uint8_t * temperature)
+bsd_generic_temperature_state(int * temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -561,7 +569,8 @@ bsd_generic_temperature_state(uint8_t * temperature)
     if (sysctl(mibs, 5, &snsr, &slen, NULL, 0)
         != -1) {
         *temperature = (snsr.value - 273150000) / 1000000.0;
-    }
+    } else
+        *temperature = INVALID_TEMP;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     unsigned int value;
     size_t len = sizeof(value);
@@ -569,7 +578,8 @@ bsd_generic_temperature_state(uint8_t * temperature)
          ("hw.acpi.thermal.tz0.temperature", &value, &len, NULL,
           0)) != -1) {
         *temperature = (value - 2732) / 10;
-    }
+    } else
+        *temperature = INVALID_TEMP;
 #endif
 }
 
@@ -631,9 +641,8 @@ bsd_generic_power_mibs_get(power_t * power)
     return (result);
 }
 
-
 static void
-bsd_generic_battery_state_get(int *mib, power_t * power)
+_bsd_generic_battery_state_get(power_t * power, int *mib)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double last_full_charge = 0;
@@ -653,7 +662,7 @@ bsd_generic_battery_state_get(int *mib, power_t * power)
     if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
         current_charge = (double) snsr.value;
 
-    /* There is a bug in the OS so try again... */
+    /* ACPI bug workaround...*/
     if (current_charge == 0 || last_full_charge == 0) {
         mib[3] = 8;
         mib[4] = 0;
@@ -709,7 +718,7 @@ bsd_generic_power_state(power_t * power)
 
     // get batteries here
     for (i = 0; i < power->battery_index; i++) {
-        bsd_generic_battery_state_get(power->bat_mibs[i], power);
+        _bsd_generic_battery_state_get(power, power->bat_mibs[i]);
     }
 
     for (i = 0; i < power->battery_index; i++)
@@ -738,22 +747,20 @@ percentage(int value, int max)
     double avg = (max / 100.0);
     double tmp = value / avg;
 
-    int result = round(tmp);
-
-    return (result);
+    return round(tmp);
 }
 
 static void
 statusbar(results_t * results)
 {
     int i;
-    int cpu_percent = 0;
+    double cpu_percent = 0;
 
     for (i = 0; i < results->cpu_count; i++) {
         cpu_percent += results->cores[i]->percent;
     }
 
-    printf("[CPU]: %d%% ", cpu_percent / results->cpu_count);
+    printf("[CPU]: %.2f%% ", cpu_percent / results->cpu_count);
 
     _memsize_kb_to_mb(&results->memory.used);
     _memsize_kb_to_mb(&results->memory.total);
@@ -766,7 +773,8 @@ statusbar(results_t * results)
     else
         printf("[DC]: %d%%", results->power.percent);
 
-    printf(" [T]: %dC", results->temperature);
+    if (results->temperature != INVALID_TEMP)
+       printf(" [T]: %dC", results->temperature);
 
     if (results->mixer.enabled) {
         uint8_t high =
@@ -789,27 +797,45 @@ results_cpu(cpu_core_t ** cores, int cpu_count)
 {
     int i;
     for (i = 0; i < cpu_count; i++)
-        printf("%d ", cores[i]->percent);
+        printf("%.2f ", cores[i]->percent);
 
     printf("\n");
 }
 
 static void
-results_mem(meminfo_t * mem)
+results_mem(meminfo_t * mem, int flags)
 {
-    printf("%lu %lu %lu %lu %lu %lu %lu\n", mem->total,
-           mem->used, mem->cached, mem->buffered, mem->shared,
-           mem->swap_total, mem->swap_used);
+    if (flags & RESULTS_MEM_MB) {
+        _memsize_kb_to_mb(&mem->total);
+        _memsize_kb_to_mb(&mem->used);
+        _memsize_kb_to_mb(&mem->cached);
+        _memsize_kb_to_mb(&mem->buffered);
+        _memsize_kb_to_mb(&mem->shared);
+        _memsize_kb_to_mb(&mem->swap_total);
+        _memsize_kb_to_mb(&mem->swap_used);
+    } else if (flags & RESULTS_MEM_GB) {
+        _memsize_kb_to_gb(&mem->total);
+        _memsize_kb_to_gb(&mem->used);
+        _memsize_kb_to_gb(&mem->cached);
+        _memsize_kb_to_gb(&mem->buffered);
+        _memsize_kb_to_gb(&mem->shared);
+        _memsize_kb_to_gb(&mem->swap_total);
+        _memsize_kb_to_gb(&mem->swap_used);
+    }
+
+   printf("%lu %lu %lu %lu %lu %lu %lu\n",
+          mem->total, mem->used, mem->cached, mem->buffered, mem->shared,
+          mem->swap_total, mem->swap_used);
 }
 
 static void
-results_pwr(power_t * power)
+results_power(power_t * power)
 {
-    printf("%d %d \n", power->have_ac, power->percent);
+    printf("%d %d\n", power->have_ac, power->percent);
 }
 
 static void
-results_tmp(int temp)
+results_temperature(int temp)
 {
     printf("%d\n", temp);
 }
@@ -829,13 +855,13 @@ display_results(results_t * results, int flags)
         results_cpu(results->cores, results->cpu_count);
 
     if (flags & RESULTS_MEM)
-        results_mem(&results->memory);
+        results_mem(&results->memory, flags);
 
     if (flags & RESULTS_PWR)
-        results_pwr(&results->power);
+        results_power(&results->power);
 
     if (flags & RESULTS_TMP)
-        results_tmp(results->temperature);
+        results_temperature(results->temperature);
 
     if (flags & RESULTS_AUD)
         results_mixer(&results->mixer);
@@ -856,8 +882,8 @@ int main(int argc, char **argv)
                    "   Where OPTIONS can be a combination of\n"
                    "      -c\n"
                    "        Show cpu core(s) state (percentages).\n"
-                   "      -m\n"
-                   "        Show memory usage (kilobytes).\n"
+                   "      -m (kb) -M (MB) -G (GB)\n"
+                   "        Show memory usage (unit).\n"
                    "      -p\n"
                    "        Show power status (ac and battery percentage).\n"
                    "      -t\n"
@@ -875,6 +901,10 @@ int main(int argc, char **argv)
             flags |= RESULTS_CPU;
         if (!strcmp(argv[i], "-m"))
             flags |= RESULTS_MEM;
+        if (!strcmp(argv[i], "-M"))
+            flags |= RESULTS_MEM | RESULTS_MEM_MB;
+        if (!strcmp(argv[i], "-G"))
+            flags |= RESULTS_MEM | RESULTS_MEM_GB;
         if (!strcmp(argv[i], "-p"))
             flags |= RESULTS_PWR;
         if (!strcmp(argv[i], "-t"))
