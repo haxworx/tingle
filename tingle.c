@@ -927,11 +927,8 @@ int main(int argc, char **argv)
             order[j] |= RESULTS_ALL;
             statusline = true;
         }
-        j++;
+        flags |= order[j++];
     }
-
-    for (i = 0; i < j ; i++)
-        flags |= order[i];
 
     if (flags == 0) {
         flags |= RESULTS_ALL;
