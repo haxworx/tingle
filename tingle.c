@@ -69,11 +69,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_TMP 0x08
 #define RESULTS_AUD 0x10
 #define RESULTS_ALL 0x1f
-#define RESULTS_MEM_MB 0x20
-#define RESULTS_MEM_GB 0x40
-
-#define MAX_BATTERIES 5
-#define INVALID_TEMP -999
 
 typedef struct {
     float percent;
@@ -81,6 +76,8 @@ typedef struct {
     unsigned long idle;
 } cpu_core_t;
 
+#define RESULTS_MEM_MB 0x20
+#define RESULTS_MEM_GB 0x40
 typedef struct {
     unsigned long total;
     unsigned long used;
@@ -91,6 +88,7 @@ typedef struct {
     unsigned long swap_used;
 } meminfo_t;
 
+#define MAX_BATTERIES 5
 typedef struct {
     int *bat_mibs[MAX_BATTERIES];
     int ac_mibs[5];
@@ -107,6 +105,7 @@ typedef struct {
     uint8_t volume_right;
 } mixer_t;
 
+#define INVALID_TEMP -999
 typedef struct results_t results_t;
 struct results_t {
     cpu_core_t **cores;
@@ -523,7 +522,6 @@ bsd_generic_audio_state_master(mixer_t * mixer)
     close(fd);
 #endif
     return (mixer->enabled);
-
 }
 
 static void
@@ -694,7 +692,6 @@ bsd_generic_power_state(power_t * power)
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     struct sensor snsr;
-    int mibs[5];
     int have_ac = 0;
     size_t slen = sizeof(struct sensor);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)

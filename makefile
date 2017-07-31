@@ -1,7 +1,12 @@
-
+PROGRAM=tingle
+SOURCES=tingle.c
+CFLAGS=-O2 -Wall -Werror -pedantic
+LDFLAGS=-lm
 default:
 	-mkdir $(HOME)/bin
-	$(CC) -lm tingle.c -o $(HOME)/bin/tingle
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SOURCES) -o $(HOME)/bin/$(PROGRAM)
 	cp tmux.conf $(HOME)/.tmux.conf
 	cp volctl $(HOME)/bin
 	chmod +x $(HOME)/bin/*
+clean:
+	-rm $(PROGRAM)
