@@ -712,11 +712,8 @@ bsd_generic_power_state(power_t * power)
     power->have_ac = value;
 #endif
 
-    // get batteries here
-    for (i = 0; i < power->battery_index; i++) {
+    for (i = 0; i < power->battery_index; i++)
         _bsd_generic_battery_state_get(power, power->bat_mibs[i]);
-    }
-
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double percent =
