@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2016-17, Al Poole <netstar@gmail.com> "http://haxlab.org"
+Copyright (c) 2017, Al Poole <netstar@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -23,6 +23,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/* Visit: http://haxlab.org */
 /* Build : cc -lm (file) -o (output) */
 
 #include <stdio.h>
