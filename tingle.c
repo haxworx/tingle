@@ -304,17 +304,14 @@ bsd_generic_cpuinfo(int *ncpu)
 static void
 bsd_generic_meminfo(meminfo_t * memory)
 {
-    size_t len;
+    size_t len = 0;
     int i = 0;
     memset(memory, 0, sizeof(meminfo_t));
 #if defined(__FreeBSD__) || defined(__DragonFly__)
     int total_pages = 0, free_pages = 0, inactive_pages = 0;
     long int result = 0;
     int page_size = getpagesize();
-
-    int *mib = malloc(sizeof(int) * 4);
-    if (mib == NULL)
-        return;
+    int mib[4] = { 0, 0, 0, 0 };
 
     mib[0] = CTL_HW;
     mib[1] = HW_PHYSMEM;
@@ -346,12 +343,14 @@ bsd_generic_meminfo(meminfo_t * memory)
     memory->buffered = (result);
     _memsize_bytes_to_kb(&memory->buffered);
 
+    len = 0;
     result = _sysctlfromname("vm.stats.vm.v_active_count", mib, 4, &len);
     if (result < 0)
         return;
     memory->cached = (result * page_size);
     _memsize_bytes_to_kb(&memory->cached);
 
+    len = 0;
     result = _sysctlfromname("vm.stats.vm.v_cache_count", mib, 4, &len);
     if (result < 0)
         return;
@@ -377,7 +376,6 @@ bsd_generic_meminfo(meminfo_t * memory)
 
     memory->swap_used >>= 10;
 
-    free(mib);
 #elif defined(__OpenBSD__)
     static int mib[] = { CTL_HW, HW_PHYSMEM64 };
     static int bcstats_mib[] = { CTL_VFS, VFS_GENERIC, VFS_BCACHESTAT };
@@ -719,8 +717,6 @@ bsd_generic_power_state(power_t * power)
         _bsd_generic_battery_state_get(power, power->bat_mibs[i]);
     }
 
-    for (i = 0; i < power->battery_index; i++)
-        free(power->bat_mibs[i]);
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double percent =
@@ -729,6 +725,7 @@ bsd_generic_power_state(power_t * power)
     power->percent = (int) percent;
     power->have_ac = have_ac;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
+    power->battery_index = 1;
     len = sizeof(value);
     if ((sysctl(power->bat_mibs[0], 4, &value, &len, NULL, 0)) == -1) {
         return;
@@ -737,6 +734,8 @@ bsd_generic_power_state(power_t * power)
     power->percent = value;
 
 #endif
+    for (i = 0; i < power->battery_index; i++)
+        free(power->bat_mibs[i]);
 }
 
 static int
@@ -807,12 +806,13 @@ results_mem(meminfo_t * mem, int flags)
     unsigned long shared, swap_total, swap_used;
 
     total = mem->total;
-    used  = mem->used;
+    used = mem->used;
     cached = mem->cached;
     buffered = mem->buffered;
     shared = mem->shared;
     swap_total = mem->swap_total;
     swap_used = mem->swap_used;
+
     if (flags & RESULTS_MEM_MB) {
         _memsize_kb_to_mb(&total);
         _memsize_kb_to_mb(&used);
@@ -939,9 +939,9 @@ int main(int argc, char **argv)
     }
 
     memset(&results, 0, sizeof(results_t));
-
+ 
     if (flags & RESULTS_CPU)
-        results.cores = bsd_generic_cpuinfo(&results.cpu_count);
+            results.cores = bsd_generic_cpuinfo(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
         bsd_generic_meminfo(&results.memory);
