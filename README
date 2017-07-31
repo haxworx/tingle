@@ -1,16 +1,14 @@
 # BSD sensors (tingle)
 
-# CPU, memory, power, audio and temperature.
+# Query CPU, memory, power, audio and temperature
+  sensors.
 
 Supporting FreeBSD, DragonFlyBSD and OpenBSD.
 
-Supporting multiple cores.
+This can be used with pipes by other processes to
+query the hardware. Or just to display a status
+line in screen or tmux or some Xorg program.
 
-Includes a tmux.conf:
-        action key 'j'
-                bindings
-                        C^ + action + u (volume up)
-                        C^ + action + j (volume down)
 Install:
 	make (or gmake)
 
