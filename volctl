@@ -5,7 +5,7 @@ use warnings;
 
 my $OS = $^O;
 
-sub print_err {
+sub Error {
 	my ($str) = @_;
 
 	print STDERR "Error: $str\n";
@@ -13,7 +13,7 @@ sub print_err {
 	exit (1);
 }
 
-sub get_current_volumes {
+sub current_mixer_levels {
 	my ($left, $right) = @_;
 	my $pipe_cmd = "";
 	if ($OS eq "openbsd" || $OS eq "netbsd") {
@@ -36,7 +36,7 @@ sub get_current_volumes {
 	return 0;
 }
 
-sub set_new_volumes {
+sub set_mixer_levels {
 	my ($new_left, $new_right) = @_;
 	my $cmd = "";
 	if ($OS eq "openbsd" || $OS eq "netbsd") {
@@ -45,15 +45,14 @@ sub set_new_volumes {
 		$cmd = "mixer $new_left:$new_right"
 	}
 
-	my $ret = system($cmd);
-
-	return $ret;
+	return system($cmd);
 }
 
 sub main {
 	my (@args) = @_;
 	my $argc = scalar(@args);	
 	my ($inc, $dec) = (0, 0);
+
 	for (my $i = 0; $i < $argc; $i++) {
 		if ($args[$i] =~ /\+(\d+)/) {
 			$inc = $1;
@@ -66,19 +65,21 @@ sub main {
 
 	my ($left, $right) = (0, 0);
 
-	if (!get_current_volumes(\$left, \$right)) {
-		print_err("couldn't get current volumes");
-	}
-	$left -= $dec; $right -= $dec;
-	$left += $inc; $right += $inc; 
-	if ($OS eq "freebsd" || $OS eq "dragonfly") {
-		if ($left <= 0) { $left = 0; };
-	        if ($left >= 100) { $left = 100; };
-		if ($right <= 0) { $right = 0; };
-		if ($right >= 100) { $right = 100 };	
+	if (!current_mixer_levels(\$left, \$right)) {
+		Error("couldn't get current volumes");
 	}
 
-	return set_new_volumes($left, $right);	
+	$left -= $dec; $right -= $dec;
+	$left += $inc; $right += $inc; 
+
+	if ($OS eq "freebsd" || $OS eq "dragonfly") {
+		if ($left < 0) { $left = 0; };
+	        if ($left > 100) { $left = 100; };
+		if ($right < 0) { $right = 0; };
+		if ($right > 100) { $right = 100 };	
+	}
+
+	return set_mixer_levels($left, $right);	
 }
 
 main(@ARGV);
