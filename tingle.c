@@ -167,7 +167,7 @@ _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 {
     size_t size;
     int diff_total, diff_idle;
-    int i, j;
+    int i;
     double ratio, percent;
     unsigned long total, idle, used;
     cpu_core_t *core;
@@ -210,6 +210,7 @@ _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
         core->idle = idle;
     }
 #elif defined(__OpenBSD__)
+    int j;
     unsigned long cpu_times[CPU_STATES];
     if (!ncpu)
         return;
