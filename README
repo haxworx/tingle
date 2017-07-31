@@ -1,0 +1,17 @@
+# BSD sensors (tingle)
+
+# CPU, memory, power, audio and temperature.
+
+Supporting FreeBSD, DragonFlyBSD and OpenBSD.
+
+Supporting multiple cores.
+
+Includes a tmux.conf:
+        action key 'j'
+                bindings
+                        C^ + action + u (volume up)
+                        C^ + action + j (volume down)
+Install:
+	make (or gmake)
+
+Al Poole <netstar@gmail.com>

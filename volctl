@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $OS = $^O;
+
+sub print_err {
+	my ($str) = @_;
+
+	print STDERR "Error: $str\n";
+
+	exit (1);
+}
+
+sub get_current_volumes {
+	my ($left, $right) = @_;
+	my $pipe_cmd = "";
+	if ($OS eq "openbsd" || $OS eq "netbsd") {
+		$pipe_cmd = "mixerctl outputs.master|";	
+	} elsif ($OS eq "freebsd" || $OS eq "dragonfly") {
+		$pipe_cmd = "mixer vol|"; 
+	}
+	open P, "$pipe_cmd";
+
+	my $line = <P>;
+	close P;
+
+	if ($line =~ m/(\d+),(\d+)/ || $line =~ m/(\d+):(\d+)/) {
+		$$left = $1;
+		$$right = $2;
+
+		return 1;
+	}
+		
+	return 0;
+}
+
+sub set_new_volumes {
+	my ($new_left, $new_right) = @_;
+	my $cmd = "";
+	if ($OS eq "openbsd" || $OS eq "netbsd") {
+		$cmd = "mixerctl outputs.master=$new_left,$new_right";
+	} elsif ($OS eq "freebsd" || $OS eq "dragonfly") {
+		$cmd = "mixer $new_left:$new_right"
+	}
+
+	my $ret = system($cmd);
+
+	return $ret;
+}
+
+sub main {
+	my (@args) = @_;
+	my $argc = scalar(@args);	
+	my ($inc, $dec) = (0, 0);
+	for (my $i = 0; $i < $argc; $i++) {
+		if ($args[$i] =~ /\+(\d+)/) {
+			$inc = $1;
+		}
+
+		if ($args[$i] =~ /\-(\d+)/) {
+			$dec = $1
+		}
+	}
+
+	my ($left, $right) = (0, 0);
+
+	if (!get_current_volumes(\$left, \$right)) {
+		print_err("couldn't get current volumes");
+	}
+	$left -= $dec; $right -= $dec;
+	$left += $inc; $right += $inc; 
+	if ($OS eq "freebsd" || $OS eq "dragonfly") {
+		if ($left <= 0) { $left = 0; };
+	        if ($left >= 100) { $left = 100; };
+		if ($right <= 0) { $right = 0; };
+		if ($right >= 100) { $right = 100 };	
+	}
+
+	return set_new_volumes($left, $right);	
+}
+
+main(@ARGV);
+
