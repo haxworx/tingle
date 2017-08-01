@@ -343,14 +343,12 @@ bsd_generic_meminfo(meminfo_t * memory)
     memory->buffered = (result);
     _memsize_bytes_to_kb(&memory->buffered);
 
-    len = 0;
     result = _sysctlfromname("vm.stats.vm.v_active_count", mib, 4, &len);
     if (result < 0)
         return;
     memory->cached = (result * page_size);
     _memsize_bytes_to_kb(&memory->cached);
 
-    len = 0;
     result = _sysctlfromname("vm.stats.vm.v_cache_count", mib, 4, &len);
     if (result < 0)
         return;
