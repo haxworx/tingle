@@ -531,7 +531,6 @@ bsd_generic_temperature_state(int * temperature)
     size_t slen = sizeof(struct sensor);
     struct sensordev snsrdev;
     size_t sdlen = sizeof(struct sensordev);
-    static const char *sensor_name = NULL;
 
     for (devn = 0;; devn++) {
         mibs[2] = devn;
