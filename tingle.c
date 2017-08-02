@@ -782,7 +782,7 @@ static void statusbar(results_t * results, int *order, int count)
             }
         }
     }
-    printf(".\n");
+    printf("\n");
 }
 
 static void results_cpu(cpu_core_t ** cores, int cpu_count)
@@ -882,9 +882,9 @@ int main(int argc, char **argv)
             printf("Usage: tingle [OPTIONS]\n"
                    "   Where OPTIONS can be a combination of\n"
                    "      -c\n"
-                   "        Show cpu average usage (percentages).\n"
+                   "        Show average CPU usage.\n"
                    "      -C\n"
-                   "        Show all cpu cores and usage.\n"
+                   "        Show all CPU cores and usage.\n"
                    "      -m (kb) -M (MB) -G (GB)\n"
                    "        Show memory usage (unit).\n"
                    "      -p\n"
@@ -894,10 +894,10 @@ int main(int argc, char **argv)
                    "      -a\n"
                    "        Display mixer values (system values).\n"
                    "      -s\n"
-                   "        Show all in a nicely formatted status-bar format.\n"
+                   "        Show all in a nicely formatted status bar format.\n"
                    "        This is the default behaviour with no arguments.\n"
-                   "        With other flags specify which components to \n"
-                   "        display in the status bar.\n"
+                   "        With other flags specify (in any order) which\n"
+                   "        components to display in the status bar.\n"
                    "      -h | -help | --help\n" "        This help.\n");
             exit(0);
         }
