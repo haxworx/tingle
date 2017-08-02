@@ -60,6 +60,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # define CPU_STATES 5
 #endif
 
+#define MAX_BATTERIES 5
+#define INVALID_TEMP -999
+
 /* Filter requests and results */
 #define RESULTS_CPU 0x01
 #define RESULTS_MEM 0x02
@@ -89,7 +92,6 @@ typedef struct {
     unsigned long swap_used;
 } meminfo_t;
 
-#define MAX_BATTERIES 5
 typedef struct {
     int *bat_mibs[MAX_BATTERIES];
     int ac_mibs[5];
@@ -106,7 +108,6 @@ typedef struct {
     uint8_t volume_right;
 } mixer_t;
 
-#define INVALID_TEMP -999
 typedef struct results_t results_t;
 struct results_t {
     cpu_core_t **cores;
@@ -568,7 +569,6 @@ static void bsd_temperature_state(int *temperature)
 
 static int bsd_power_mibs_get(power_t * power)
 {
-    int result = 0;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     struct sensordev snsrdev;
     size_t sdlen = sizeof(struct sensordev);
@@ -599,7 +599,6 @@ static int bsd_power_mibs_get(power_t * power)
                 tmp[1] = mib[1];
                 tmp[2] = mib[2];
             }
-            result++;
         }
 
         if (!strcmp("acpiac0", snsrdev.xname)) {
@@ -614,7 +613,6 @@ static int bsd_power_mibs_get(power_t * power)
         sysctlnametomib("hw.acpi.battery.life",
                         power->bat_mibs[power->battery_index], &len);
         power->battery_index = 1;
-        result++;
     }
 
     if ((sysctlbyname("hw.acpi.acline", NULL, &len, NULL, 0)) != -1) {
@@ -622,7 +620,7 @@ static int bsd_power_mibs_get(power_t * power)
     }
 #endif
 
-    return (result);
+    return (power->battery_index);
 }
 
 static void _bsd_battery_state_get(power_t * power, int *mib)
@@ -704,7 +702,7 @@ static void bsd_power_state(power_t * power)
     double percent =
         100 * (power->current_charge / power->last_full_charge);
 
-    power->percent = (int) percent;
+    power->percent = percent;
     power->have_ac = have_ac;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     len = sizeof(value);
