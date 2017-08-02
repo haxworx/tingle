@@ -60,7 +60,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # define CPU_STATES 5
 #endif
 
-/* Filer requests and results */
+/* Filter requests and results */
 #define RESULTS_CPU 0x01
 #define RESULTS_MEM 0x02
 #define RESULTS_PWR 0x04
@@ -69,9 +69,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_ALL 0x1f
 
 /* Refine results */
-#define RESULTS_CPU_CORES 0x80
 #define RESULTS_MEM_MB 0x20
 #define RESULTS_MEM_GB 0x40
+#define RESULTS_CPU_CORES 0x80
 
 typedef struct {
     float percent;
