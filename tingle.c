@@ -117,8 +117,7 @@ struct results_t {
     int temperature;
 };
 
-static int
-cpu_count(void)
+static int cpu_count(void)
 {
     int cores = 0;
 #if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
@@ -149,22 +148,19 @@ _sysctlfromname(const char *name, void *mib, int depth, size_t * len)
 }
 #endif
 
-static void
-_memsize_bytes_to_kb(unsigned long *bytes)
+static void _memsize_bytes_to_kb(unsigned long *bytes)
 {
     *bytes = (unsigned int) *bytes >> 10;
 }
 
 #define _memsize_kb_to_mb _memsize_bytes_to_kb
 
-static void
-_memsize_kb_to_gb(unsigned long *bytes)
+static void _memsize_kb_to_gb(unsigned long *bytes)
 {
     *bytes = (unsigned int) *bytes >> 20;
 }
 
-static void
-_bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
+static void _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 {
     size_t size;
     int diff_total, diff_idle;
@@ -281,8 +277,7 @@ _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 #endif
 }
 
-static cpu_core_t **
-bsd_generic_cpuinfo(int *ncpu)
+static cpu_core_t **bsd_generic_cpuinfo(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -301,8 +296,7 @@ bsd_generic_cpuinfo(int *ncpu)
     return (cores);
 }
 
-static void
-bsd_generic_meminfo(meminfo_t * memory)
+static void bsd_generic_meminfo(meminfo_t * memory)
 {
     size_t len = 0;
     int i = 0;
@@ -361,7 +355,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     memory->swap_total = (result / 1024);
 
     struct xswdev xsw;
-    /* previous mib is important for this one...*/
+    /* previous mib is important for this one... */
 
     while (i++) {
         mib[2] = i;
@@ -408,8 +402,7 @@ bsd_generic_meminfo(meminfo_t * memory)
     if (rnswap == -1)
         goto swap_out;
 
-    for (i = 0; i < nswap; i++)
-    {
+    for (i = 0; i < nswap; i++) {
         if (swdev[i].se_flags & SWF_ENABLE) {
             memory->swap_used += (swdev[i].se_inuse / (1024 / DEV_BSIZE));
             memory->swap_total += (swdev[i].se_nblks / (1024 / DEV_BSIZE));
@@ -435,8 +428,7 @@ bsd_generic_meminfo(meminfo_t * memory)
 #endif
 }
 
-static int
-bsd_generic_audio_state_master(mixer_t * mixer)
+static int bsd_generic_audio_state_master(mixer_t * mixer)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int i, fd, devn;
@@ -521,8 +513,7 @@ bsd_generic_audio_state_master(mixer_t * mixer)
     return (mixer->enabled);
 }
 
-static void
-bsd_generic_temperature_state(int * temperature)
+static void bsd_generic_temperature_state(int *temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -577,8 +568,7 @@ bsd_generic_temperature_state(int * temperature)
 #endif
 }
 
-static int
-bsd_generic_power_mibs_get(power_t * power)
+static int bsd_generic_power_mibs_get(power_t * power)
 {
     int result = 0;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -604,7 +594,8 @@ bsd_generic_power_mibs_get(power_t * power)
             char buf[64];
             snprintf(buf, sizeof(buf), "acpibat%d", i);
             if (!strcmp(buf, snsrdev.xname)) {
-                power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
+                power->bat_mibs[power->battery_index] =
+                    malloc(sizeof(int) * 5);
                 int *tmp = power->bat_mibs[power->battery_index++];
                 tmp[0] = mib[0];
                 tmp[1] = mib[1];
@@ -636,8 +627,7 @@ bsd_generic_power_mibs_get(power_t * power)
     return (result);
 }
 
-static void
-_bsd_generic_battery_state_get(power_t * power, int *mib)
+static void _bsd_generic_battery_state_get(power_t * power, int *mib)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double last_full_charge = 0;
@@ -657,7 +647,7 @@ _bsd_generic_battery_state_get(power_t * power, int *mib)
     if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
         current_charge = (double) snsr.value;
 
-    /* ACPI bug workaround...*/
+    /* ACPI bug workaround... */
     if (current_charge == 0 || last_full_charge == 0) {
         mib[3] = 8;
         mib[4] = 0;
@@ -683,8 +673,7 @@ _bsd_generic_battery_state_get(power_t * power, int *mib)
 #endif
 }
 
-static void
-bsd_generic_power_state(power_t * power)
+static void bsd_generic_power_state(power_t * power)
 {
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -732,8 +721,7 @@ bsd_generic_power_state(power_t * power)
         free(power->bat_mibs[i]);
 }
 
-static int
-percentage(int value, int max)
+static int percentage(int value, int max)
 {
     double avg = (max / 100.0);
     double tmp = value / avg;
@@ -741,63 +729,63 @@ percentage(int value, int max)
     return round(tmp);
 }
 
-static void
-statusbar(results_t * results, int flags)
+static void statusbar(results_t * results, int *order, int count)
 {
-    int i;
+    int i, j, flags;
     double cpu_percent = 0;
+    for (i = 0; i < count; i++) {
+        flags = order[i];
+        if (flags & RESULTS_CPU_CORES) {
+            printf(" [CPUs]: ");
+            for (j = 0; j < results->cpu_count; j++)
+                printf("%.2f%% ", results->cores[j]->percent);
+        } else if (flags & RESULTS_CPU) {
+            for (j = 0; j < results->cpu_count; j++)
+                cpu_percent += results->cores[j]->percent;
 
-    if (flags & RESULTS_CPU_CORES) {
-       printf("[CPUs]: ");
-       for (i = 0; i < results->cpu_count; i++)
-         printf("%.2f%% ", results->cores[i]->percent);
-    } else if (flags & RESULTS_CPU) {
-        for (i = 0; i < results->cpu_count; i++)
-                cpu_percent += results->cores[i]->percent;
+            printf(" [CPU]: %.2f%% ", cpu_percent / results->cpu_count);
+        }
 
-        printf("[CPU]: %.2f%% ", cpu_percent / results->cpu_count);
-    }
+        if (flags & RESULTS_MEM) {
+            _memsize_kb_to_mb(&results->memory.used);
+            _memsize_kb_to_mb(&results->memory.total);
 
-    if (flags & RESULTS_MEM) {
-        _memsize_kb_to_mb(&results->memory.used);
-        _memsize_kb_to_mb(&results->memory.total);
+            printf(" [MEM]: %luM/%luM (used/total)", results->memory.used,
+                   results->memory.total);
+        }
 
-        printf("[MEM]: %luM/%luM (used/total) ", results->memory.used,
-               results->memory.total);
-    }
+        if (flags & RESULTS_PWR) {
+            if (results->power.have_ac)
+                printf(" [AC]: %d%%", results->power.percent);
+            else
+                printf(" [DC]: %d%%", results->power.percent);
+        }
 
-    if (flags & RESULTS_PWR) {
-        if (results->power.have_ac)
-            printf("[AC]: %d%%", results->power.percent);
-        else
-            printf("[DC]: %d%%", results->power.percent);
-    }
+        if (flags & RESULTS_TMP) {
+            if (results->temperature != INVALID_TEMP)
+                printf(" [T]: %dC", results->temperature);
+        }
 
-    if (flags & RESULTS_TMP) {
-        if (results->temperature != INVALID_TEMP)
-           printf(" [T]: %dC", results->temperature);
-    }
-
-    if (flags & RESULTS_AUD) {
-        if (results->mixer.enabled) {
-            uint8_t level =
-            results->mixer.volume_right >
-            results->mixer.volume_left ? results->mixer.
-            volume_right : results->mixer.volume_left;
+        if (flags & RESULTS_AUD) {
+            if (results->mixer.enabled) {
+                uint8_t level =
+                    results->mixer.volume_right >
+                    results->mixer.volume_left ? results->
+                    mixer.volume_right : results->mixer.volume_left;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-            int8_t perc = percentage(level, 255);
-            printf(" [VOL]: %d%%", perc);
+                int8_t perc = percentage(level, 255);
+                printf(" [VOL]: %d%%", perc);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
-            uint8_t perc = percentage(level, 100);
-            printf(" [VOL]: %d%%", perc);
+                uint8_t perc = percentage(level, 100);
+                printf(" [VOL]: %d%%", perc);
 #endif
+            }
         }
     }
     printf(".\n");
 }
 
-static void
-results_cpu(cpu_core_t ** cores, int cpu_count)
+static void results_cpu(cpu_core_t ** cores, int cpu_count)
 {
     int i;
     for (i = 0; i < cpu_count; i++)
@@ -806,8 +794,7 @@ results_cpu(cpu_core_t ** cores, int cpu_count)
     printf("\n");
 }
 
-static void
-results_mem(meminfo_t * mem, int flags)
+static void results_mem(meminfo_t * mem, int flags)
 {
     unsigned long total, used, cached, buffered;
     unsigned long shared, swap_total, swap_used;
@@ -838,36 +825,31 @@ results_mem(meminfo_t * mem, int flags)
         _memsize_kb_to_gb(&swap_used);
     }
 
-   printf("%lu %lu %lu %lu %lu %lu %lu\n",
-          total, used, cached, buffered, shared,
-          swap_total, swap_used);
+    printf("%lu %lu %lu %lu %lu %lu %lu\n",
+           total, used, cached, buffered, shared, swap_total, swap_used);
 }
 
-static void
-results_power(power_t * power)
+static void results_power(power_t * power)
 {
     printf("%d %d\n", power->have_ac, power->percent);
 }
 
-static void
-results_temperature(int temp)
+static void results_temperature(int temp)
 {
     printf("%d\n", temp);
 }
 
-static void
-results_mixer(mixer_t * mixer)
+static void results_mixer(mixer_t * mixer)
 {
-    if (!mixer->enabled) return;
+    if (!mixer->enabled)
+        return;
 
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
-static void
-display_results(results_t * results, int *order, int count)
+static void display_results(results_t * results, int *order, int count)
 {
     int i, flags;
-
     for (i = 0; i < count; i++) {
         flags = order[i];
         if (flags & RESULTS_CPU)
@@ -944,11 +926,12 @@ int main(int argc, char **argv)
 
     if (flags == 0) {
         flags |= RESULTS_ALL;
+        order[0] |= RESULTS_ALL;
         statusline = true;
     }
 
     memset(&results, 0, sizeof(results_t));
- 
+
     if (flags & RESULTS_CPU)
         results.cores = bsd_generic_cpuinfo(&results.cpu_count);
 
@@ -968,7 +951,7 @@ int main(int argc, char **argv)
         bsd_generic_audio_state_master(&results.mixer);
 
     if (statusline)
-        statusbar(&results, flags);
+        statusbar(&results, order, j ? j : 1);
     else
         display_results(&results, order, j);
 
