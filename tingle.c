@@ -903,7 +903,7 @@ int main(int argc, char **argv)
                    "        Show average CPU usage.\n"
                    "      -C\n"
                    "        Show all CPU cores and usage.\n"
-                   "      -m (kb) -M (MB) -G (GB)\n"
+                   "      -k (kb) -m (MB) -g (GB)\n"
                    "        Show memory usage (unit).\n"
                    "      -p\n"
                    "        Show power status (ac and battery percentage).\n"
@@ -924,11 +924,11 @@ int main(int argc, char **argv)
             order[j] |= RESULTS_CPU;
         else if (!strcmp(argv[i], "-C"))
             order[j] |= RESULTS_CPU | RESULTS_CPU_CORES;
-        else if (!strcmp(argv[i], "-m"))
+        else if (!strcmp(argv[i], "-k"))
             order[j] |= RESULTS_MEM;
-        else if (!strcmp(argv[i], "-M"))
+        else if (!strcmp(argv[i], "-m"))
             order[j] |= RESULTS_MEM | RESULTS_MEM_MB;
-        else if (!strcmp(argv[i], "-G"))
+        else if (!strcmp(argv[i], "-g"))
             order[j] |= RESULTS_MEM | RESULTS_MEM_GB;
         else if (!strcmp(argv[i], "-p"))
             order[j] |= RESULTS_PWR;
