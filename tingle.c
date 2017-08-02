@@ -732,7 +732,10 @@ static void display_statusline(results_t * results, int *order, int count)
     for (i = 0; i < count; i++) {
         flags = order[i];
         if (flags & RESULTS_CPU_CORES) {
-            printf(" [CPUs]: ");
+	    if (results->cpu_count > 1)
+                printf(" [CPUs]: ");
+	    else
+		printf(" [CPU]: ");
             for (j = 0; j < results->cpu_count; j++) {
                 printf("%.2f%%", results->cores[j]->percent);
                 if (j < (results->cpu_count - 1))
