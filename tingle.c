@@ -277,7 +277,7 @@ static void _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
 #endif
 }
 
-static cpu_core_t **bsd_generic_cpuinfo(int *ncpu)
+static cpu_core_t **bsd_cpuinfo(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -296,7 +296,7 @@ static cpu_core_t **bsd_generic_cpuinfo(int *ncpu)
     return (cores);
 }
 
-static void bsd_generic_meminfo(meminfo_t * memory)
+static void bsd_meminfo(meminfo_t * memory)
 {
     size_t len = 0;
     int i = 0;
@@ -305,10 +305,8 @@ static void bsd_generic_meminfo(meminfo_t * memory)
     int total_pages = 0, free_pages = 0, inactive_pages = 0;
     long int result = 0;
     int page_size = getpagesize();
-    int mib[4];
+    int mib[4] = { CTL_HW, HW_PHYSMEM, 0, 0 };
 
-    mib[0] = CTL_HW;
-    mib[1] = HW_PHYSMEM;
     len = sizeof(memory->total);
     if (sysctl(mib, 2, &memory->total, &len, NULL, 0) == -1)
         return;
@@ -428,7 +426,7 @@ static void bsd_generic_meminfo(meminfo_t * memory)
 #endif
 }
 
-static int bsd_generic_audio_state_master(mixer_t * mixer)
+static int bsd_mixer_state_master(mixer_t * mixer)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int i, fd, devn;
@@ -513,7 +511,7 @@ static int bsd_generic_audio_state_master(mixer_t * mixer)
     return (mixer->enabled);
 }
 
-static void bsd_generic_temperature_state(int *temperature)
+static void bsd_temperature_state(int *temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -568,7 +566,7 @@ static void bsd_generic_temperature_state(int *temperature)
 #endif
 }
 
-static int bsd_generic_power_mibs_get(power_t * power)
+static int bsd_power_mibs_get(power_t * power)
 {
     int result = 0;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -627,7 +625,7 @@ static int bsd_generic_power_mibs_get(power_t * power)
     return (result);
 }
 
-static void _bsd_generic_battery_state_get(power_t * power, int *mib)
+static void _bsd_battery_state_get(power_t * power, int *mib)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double last_full_charge = 0;
@@ -673,7 +671,7 @@ static void _bsd_generic_battery_state_get(power_t * power, int *mib)
 #endif
 }
 
-static void bsd_generic_power_state(power_t * power)
+static void bsd_power_state(power_t * power)
 {
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -700,7 +698,7 @@ static void bsd_generic_power_state(power_t * power)
 #endif
 
     for (i = 0; i < power->battery_index; i++)
-        _bsd_generic_battery_state_get(power, power->bat_mibs[i]);
+        _bsd_battery_state_get(power, power->bat_mibs[i]);
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double percent =
@@ -729,10 +727,10 @@ static int percentage(int value, int max)
     return round(tmp);
 }
 
-static void statusbar(results_t * results, int *order, int count)
+static void display_statusline(results_t * results, int *order, int count)
 {
     int i, j, flags;
-    double cpu_percent = 0;
+
     for (i = 0; i < count; i++) {
         flags = order[i];
         if (flags & RESULTS_CPU_CORES) {
@@ -740,6 +738,7 @@ static void statusbar(results_t * results, int *order, int count)
             for (j = 0; j < results->cpu_count; j++)
                 printf("%.2f%% ", results->cores[j]->percent);
         } else if (flags & RESULTS_CPU) {
+            double cpu_percent = 0;
             for (j = 0; j < results->cpu_count; j++)
                 cpu_percent += results->cores[j]->percent;
 
@@ -747,11 +746,22 @@ static void statusbar(results_t * results, int *order, int count)
         }
 
         if (flags & RESULTS_MEM) {
-            _memsize_kb_to_mb(&results->memory.used);
-            _memsize_kb_to_mb(&results->memory.total);
+            unsigned long used = results->memory.used;
+            unsigned long total = results->memory.total;
+            const char *unit;
 
-            printf(" [MEM]: %luM/%luM (used/total)", results->memory.used,
-                   results->memory.total);
+            if (flags & RESULTS_MEM_GB) {
+                unit = "G";
+                _memsize_kb_to_gb(&used);
+                _memsize_kb_to_gb(&total);
+            } else if (flags & RESULTS_MEM_MB) {
+                unit = "M";
+                _memsize_kb_to_mb(&used);
+                _memsize_kb_to_mb(&total);
+            } else
+                unit = "K";
+
+            printf(" [MEM]: %lu/%lu%s (used/total)", used, total, unit);
         }
 
         if (flags & RESULTS_PWR) {
@@ -785,11 +795,19 @@ static void statusbar(results_t * results, int *order, int count)
     printf("\n");
 }
 
-static void results_cpu(cpu_core_t ** cores, int cpu_count)
+static void results_cpu(cpu_core_t ** cores, int cpu_count, int flags)
 {
     int i;
-    for (i = 0; i < cpu_count; i++)
-        printf("%.2f ", cores[i]->percent);
+
+    if (flags & RESULTS_CPU_CORES) {
+        for (i = 0; i < cpu_count; i++)
+            printf("%.2f ", cores[i]->percent);
+    } else {
+        double total = 0;
+        for (i = 0; i < cpu_count; i++)
+            total += cores[i]->percent;
+        printf("%.2f", total / cpu_count);
+    }
 
     printf("\n");
 }
@@ -847,13 +865,13 @@ static void results_mixer(mixer_t * mixer)
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
-static void display_results(results_t * results, int *order, int count)
+static void display_verbose(results_t * results, int *order, int count)
 {
     int i, flags;
     for (i = 0; i < count; i++) {
         flags = order[i];
         if (flags & RESULTS_CPU)
-            results_cpu(results->cores, results->cpu_count);
+            results_cpu(results->cores, results->cpu_count, flags);
         else if (flags & RESULTS_MEM)
             results_mem(&results->memory, flags);
         else if (flags & RESULTS_PWR)
@@ -926,34 +944,34 @@ int main(int argc, char **argv)
 
     if (flags == 0) {
         flags |= RESULTS_ALL;
-        order[0] |= RESULTS_ALL;
+        order[0] |= RESULTS_ALL | RESULTS_MEM_MB;
         statusline = true;
     }
 
     memset(&results, 0, sizeof(results_t));
 
     if (flags & RESULTS_CPU)
-        results.cores = bsd_generic_cpuinfo(&results.cpu_count);
+        results.cores = bsd_cpuinfo(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
-        bsd_generic_meminfo(&results.memory);
+        bsd_meminfo(&results.memory);
 
     if (flags & RESULTS_PWR) {
-        have_battery = bsd_generic_power_mibs_get(&results.power);
+        have_battery = bsd_power_mibs_get(&results.power);
         if (have_battery)
-            bsd_generic_power_state(&results.power);
+            bsd_power_state(&results.power);
     }
 
     if (flags & RESULTS_TMP)
-        bsd_generic_temperature_state(&results.temperature);
+        bsd_temperature_state(&results.temperature);
 
     if (flags & RESULTS_AUD)
-        bsd_generic_audio_state_master(&results.mixer);
+        bsd_mixer_state_master(&results.mixer);
 
     if (statusline)
-        statusbar(&results, order, j ? j : 1);
+        display_statusline(&results, order, j ? j : 1);
     else
-        display_results(&results, order, j);
+        display_verbose(&results, order, j);
 
     if (flags & RESULTS_CPU) {
         for (i = 0; i < results.cpu_count; i++)
