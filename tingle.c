@@ -53,9 +53,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-/* cp_times2 specification is not finalised??? 
-   there is a good reason for 6 but I don't remember! 
-*/
 # define CPU_STATES 6
 #endif
 
@@ -63,7 +60,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # define CPU_STATES 5
 #endif
 
-/* For filtering the requests and outputs */
+/* Filer requests and results */
 #define RESULTS_CPU 0x01
 #define RESULTS_MEM 0x02
 #define RESULTS_PWR 0x04
@@ -71,14 +68,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_AUD 0x10
 #define RESULTS_ALL 0x1f
 
+/* Refine results */
+#define RESULTS_CPU_CORES 0x80
+#define RESULTS_MEM_MB 0x20
+#define RESULTS_MEM_GB 0x40
+
 typedef struct {
     float percent;
     unsigned long total;
     unsigned long idle;
 } cpu_core_t;
 
-#define RESULTS_MEM_MB 0x20
-#define RESULTS_MEM_GB 0x40
 typedef struct {
     unsigned long total;
     unsigned long used;
@@ -742,42 +742,56 @@ percentage(int value, int max)
 }
 
 static void
-statusbar(results_t * results)
+statusbar(results_t * results, int flags)
 {
     int i;
     double cpu_percent = 0;
 
-    for (i = 0; i < results->cpu_count; i++)
-        cpu_percent += results->cores[i]->percent;
+    if (flags & RESULTS_CPU_CORES) {
+       printf("[CPUs]: ");
+       for (i = 0; i < results->cpu_count; i++)
+         printf("%.2f%% ", results->cores[i]->percent);
+    } else if (flags & RESULTS_CPU) {
+        for (i = 0; i < results->cpu_count; i++)
+                cpu_percent += results->cores[i]->percent;
 
-    printf("[CPU]: %.2f%% ", cpu_percent / results->cpu_count);
+        printf("[CPU]: %.2f%% ", cpu_percent / results->cpu_count);
+    }
 
-    _memsize_kb_to_mb(&results->memory.used);
-    _memsize_kb_to_mb(&results->memory.total);
+    if (flags & RESULTS_MEM) {
+        _memsize_kb_to_mb(&results->memory.used);
+        _memsize_kb_to_mb(&results->memory.total);
 
-    printf("[MEM]: %luM/%luM (used/total) ", results->memory.used,
-           results->memory.total);
+        printf("[MEM]: %luM/%luM (used/total) ", results->memory.used,
+               results->memory.total);
+    }
 
-    if (results->power.have_ac)
-        printf("[AC]: %d%%", results->power.percent);
-    else
-        printf("[DC]: %d%%", results->power.percent);
+    if (flags & RESULTS_PWR) {
+        if (results->power.have_ac)
+            printf("[AC]: %d%%", results->power.percent);
+        else
+            printf("[DC]: %d%%", results->power.percent);
+    }
 
-    if (results->temperature != INVALID_TEMP)
-       printf(" [T]: %dC", results->temperature);
+    if (flags & RESULTS_TMP) {
+        if (results->temperature != INVALID_TEMP)
+           printf(" [T]: %dC", results->temperature);
+    }
 
-    if (results->mixer.enabled) {
-        uint8_t high =
+    if (flags & RESULTS_AUD) {
+        if (results->mixer.enabled) {
+            uint8_t level =
             results->mixer.volume_right >
             results->mixer.volume_left ? results->mixer.
             volume_right : results->mixer.volume_left;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-        uint8_t perc = percentage(high, 255);
-        printf(" [VOL]: %d%%", perc);
+            int8_t perc = percentage(level, 255);
+            printf(" [VOL]: %d%%", perc);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
-        uint8_t perc = percentage(high, 100);
-        printf(" [VOL]: %d%%", perc);
+            uint8_t perc = percentage(level, 100);
+            printf(" [VOL]: %d%%", perc);
 #endif
+        }
     }
     printf(".\n");
 }
@@ -886,7 +900,9 @@ int main(int argc, char **argv)
             printf("Usage: tingle [OPTIONS]\n"
                    "   Where OPTIONS can be a combination of\n"
                    "      -c\n"
-                   "        Show cpu core(s) state (percentages).\n"
+                   "        Show cpu average usage (percentages).\n"
+                   "      -C\n"
+                   "        Show all cpu cores and usage.\n"
                    "      -m (kb) -M (MB) -G (GB)\n"
                    "        Show memory usage (unit).\n"
                    "      -p\n"
@@ -897,13 +913,17 @@ int main(int argc, char **argv)
                    "        Display mixer values (system values).\n"
                    "      -s\n"
                    "        Show all in a nicely formatted status-bar format.\n"
-                   "        This is the default behaviour.\n"
+                   "        This is the default behaviour with no arguments.\n"
+                   "        With other flags specify which components to \n"
+                   "        display in the status bar.\n"
                    "      -h | -help | --help\n" "        This help.\n");
             exit(0);
         }
 
         if (!strcmp(argv[i], "-c"))
             order[j] |= RESULTS_CPU;
+        else if (!strcmp(argv[i], "-C"))
+            order[j] |= RESULTS_CPU | RESULTS_CPU_CORES;
         else if (!strcmp(argv[i], "-m"))
             order[j] |= RESULTS_MEM;
         else if (!strcmp(argv[i], "-M"))
@@ -917,7 +937,6 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-a"))
             order[j] |= RESULTS_AUD;
         else if (!strcmp(argv[i], "-s")) {
-            order[j] |= RESULTS_ALL;
             statusline = true;
         }
         flags |= order[j++];
@@ -949,7 +968,7 @@ int main(int argc, char **argv)
         bsd_generic_audio_state_master(&results.mixer);
 
     if (statusline)
-        statusbar(&results);
+        statusbar(&results, flags);
     else
         display_results(&results, order, j);
 
