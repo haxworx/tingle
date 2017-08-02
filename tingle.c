@@ -903,7 +903,7 @@ int main(int argc, char **argv)
                    "        Show average CPU usage.\n"
                    "      -C\n"
                    "        Show all CPU cores and usage.\n"
-                   "      -k (kb) -m (MB) -g (GB)\n"
+                   "      -k (KB) -m (MB) -g (GB)\n"
                    "        Show memory usage (unit).\n"
                    "      -p\n"
                    "        Show power status (ac and battery percentage).\n"
