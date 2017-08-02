@@ -747,9 +747,8 @@ statusbar(results_t * results)
     int i;
     double cpu_percent = 0;
 
-    for (i = 0; i < results->cpu_count; i++) {
+    for (i = 0; i < results->cpu_count; i++)
         cpu_percent += results->cores[i]->percent;
-    }
 
     printf("[CPU]: %.2f%% ", cpu_percent / results->cpu_count);
 
@@ -845,8 +844,8 @@ results_temperature(int temp)
 static void
 results_mixer(mixer_t * mixer)
 {
-    if (!mixer->enabled)
-        return;
+    if (!mixer->enabled) return;
+
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
@@ -856,17 +855,17 @@ display_results(results_t * results, int *order, int count)
     int i, flags;
 
     for (i = 0; i < count; i++) {
-    flags = order[i];
-    if (flags & RESULTS_CPU)
-        results_cpu(results->cores, results->cpu_count);
-    else if (flags & RESULTS_MEM)
-        results_mem(&results->memory, flags);
-    else if (flags & RESULTS_PWR)
-        results_power(&results->power);
-    else if (flags & RESULTS_TMP)
-        results_temperature(results->temperature);
-    else if (flags & RESULTS_AUD)
-        results_mixer(&results->mixer);
+        flags = order[i];
+        if (flags & RESULTS_CPU)
+            results_cpu(results->cores, results->cpu_count);
+        else if (flags & RESULTS_MEM)
+            results_mem(&results->memory, flags);
+        else if (flags & RESULTS_PWR)
+            results_power(&results->power);
+        else if (flags & RESULTS_TMP)
+            results_temperature(results->temperature);
+        else if (flags & RESULTS_AUD)
+            results_mixer(&results->mixer);
     }
 }
 
@@ -939,9 +938,8 @@ int main(int argc, char **argv)
 
     if (flags & RESULTS_PWR) {
         have_battery = bsd_generic_power_mibs_get(&results.power);
-        if (have_battery) {
+        if (have_battery)
             bsd_generic_power_state(&results.power);
-        }
     }
 
     if (flags & RESULTS_TMP)
