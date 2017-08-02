@@ -759,7 +759,7 @@ static void display_statusline(results_t * results, int *order, int count)
             } else
                 unit = 'K';
 
-            printf(" [MEM]: %lu/%lu%c (used/total)", used, total, unit);
+            printf(" [MEM]: %lu/%lu%c", used, total, unit);
         }
 
         if (flags & RESULTS_PWR) {
