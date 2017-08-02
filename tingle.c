@@ -748,20 +748,20 @@ static void display_statusline(results_t * results, int *order, int count)
         if (flags & RESULTS_MEM) {
             unsigned long used = results->memory.used;
             unsigned long total = results->memory.total;
-            const char *unit;
+            char unit;
 
             if (flags & RESULTS_MEM_GB) {
-                unit = "G";
+                unit = 'G';
                 _memsize_kb_to_gb(&used);
                 _memsize_kb_to_gb(&total);
             } else if (flags & RESULTS_MEM_MB) {
-                unit = "M";
+                unit = 'M';
                 _memsize_kb_to_mb(&used);
                 _memsize_kb_to_mb(&total);
             } else
-                unit = "K";
+                unit = 'K';
 
-            printf(" [MEM]: %lu/%lu%s (used/total)", used, total, unit);
+            printf(" [MEM]: %lu/%lu%c (used/total)", used, total, unit);
         }
 
         if (flags & RESULTS_PWR) {
@@ -783,7 +783,7 @@ static void display_statusline(results_t * results, int *order, int count)
                     results->mixer.volume_left ? results->
                     mixer.volume_right : results->mixer.volume_left;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-                int8_t perc = percentage(level, 255);
+                uint8_t perc = percentage(level, 255);
                 printf(" [VOL]: %d%%", perc);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
                 uint8_t perc = percentage(level, 100);
@@ -924,19 +924,19 @@ int main(int argc, char **argv)
             order[j] |= RESULTS_CPU;
         else if (!strcmp(argv[i], "-C"))
             order[j] |= RESULTS_CPU | RESULTS_CPU_CORES;
-        else if (!strcmp(argv[i], "-k"))
+        else if (!strcasecmp(argv[i], "-k"))
             order[j] |= RESULTS_MEM;
-        else if (!strcmp(argv[i], "-m"))
+        else if (!strcasecmp(argv[i], "-m"))
             order[j] |= RESULTS_MEM | RESULTS_MEM_MB;
-        else if (!strcmp(argv[i], "-g"))
+        else if (!strcasecmp(argv[i], "-g"))
             order[j] |= RESULTS_MEM | RESULTS_MEM_GB;
-        else if (!strcmp(argv[i], "-p"))
+        else if (!strcasecmp(argv[i], "-p"))
             order[j] |= RESULTS_PWR;
-        else if (!strcmp(argv[i], "-t"))
+        else if (!strcasecmp(argv[i], "-t"))
             order[j] |= RESULTS_TMP;
-        else if (!strcmp(argv[i], "-a"))
+        else if (!strcasecmp(argv[i], "-a"))
             order[j] |= RESULTS_AUD;
-        else if (!strcmp(argv[i], "-s")) {
+        else if (!strcasecmp(argv[i], "-s")) {
             statusline = true;
         }
         flags |= order[j++];
