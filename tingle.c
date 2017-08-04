@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 # include <sys/swap.h>
@@ -48,6 +49,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
+# include <net/if.h>
+# include <net/if_mib.h>
 # include <sys/soundcard.h>
 # include <vm/vm_param.h>
 #endif
@@ -69,12 +72,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_PWR 0x04
 #define RESULTS_TMP 0x08
 #define RESULTS_AUD 0x10
-#define RESULTS_ALL 0x1f
-
+#define RESULTS_DEFAULT 0x1f
+#define RESULTS_NET 0x20
 /* Refine results */
-#define RESULTS_MEM_MB 0x20
-#define RESULTS_MEM_GB 0x40
-#define RESULTS_CPU_CORES 0x80
+#define RESULTS_MEM_MB 0x40
+#define RESULTS_MEM_GB 0x80
+#define RESULTS_CPU_CORES 0x100
 
 typedef struct {
     float percent;
@@ -110,12 +113,19 @@ typedef struct {
 
 typedef struct results_t results_t;
 struct results_t {
-    cpu_core_t **cores;
     int cpu_count;
+    cpu_core_t **cores;
+
     meminfo_t memory;
+
     power_t power;
+
     mixer_t mixer;
-    int temperature;
+
+   unsigned long incoming;
+   unsigned long outgoing;
+
+   int temperature;
 };
 
 static int cpu_count(void)
@@ -717,6 +727,110 @@ static void bsd_power_state(power_t * power)
         free(power->bat_mibs[i]);
 }
 
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+
+static int
+get_ifmib_general(int row, struct ifmibdata *data)
+{
+   int mib[6];
+   size_t len;
+
+   mib[0] = CTL_NET;
+   mib[1] = PF_LINK;
+   mib[2] = NETLINK_GENERIC;
+   mib[3] = IFMIB_IFDATA;
+   mib[4] = row;
+   mib[5] = IFDATA_GENERAL;
+
+   len = sizeof(*data);
+
+   return sysctl(mib, 6, data, &len, NULL, 0);
+}
+
+static void
+_freebsd_generic_network_status(unsigned long int *in, unsigned long int *out)
+{
+   struct ifmibdata *ifmd;
+   size_t len;
+   int i, count;
+   len = sizeof(count);
+   if (sysctlbyname("net.link.generic.system.ifcount", &count, &len, NULL, 0) < 0)
+     return;
+
+   ifmd = malloc(sizeof(struct ifmibdata));
+   if (!ifmd)
+     return;
+
+   for (i = 1; i <= count; i++)
+      {
+         get_ifmib_general(i, ifmd);
+         if (!strcmp(ifmd->ifmd_name, "lo0")) continue;
+         *in += ifmd->ifmd_data.ifi_ibytes;
+         *out += ifmd->ifmd_data.ifi_obytes;
+      }
+   free(ifmd);
+}
+
+#endif
+
+#if defined(__OpenBSD__)
+static void
+_openbsd_generic_network_status(unsigned long int *in, unsigned long int *out)
+{
+   struct ifaddrs *interfaces, *ifa;
+
+   if (getifaddrs(&interfaces) < 0)
+     return;
+
+   int sock = socket(AF_INET, SOCK_STREAM, 0);
+   if (sock < 0)
+     return;
+
+   for (ifa = interfaces; ifa; ifa = ifa->ifa_next)
+     {
+        struct ifreq ifreq;
+        struct if_data if_data;
+
+        ifreq.ifr_data = (void *)&if_data;
+        strncpy(ifreq.ifr_name, ifa->ifa_name, IFNAMSIZ-1);
+        if (ioctl(sock, SIOCGIFDATA, &ifreq) < 0)
+          return;
+
+        struct if_data * const ifi = &if_data;
+        if (ifi->ifi_type == IFT_ETHER || ifi->ifi_type == IFT_IEEE80211)
+          {
+             if (ifi->ifi_ibytes)
+               *in += ifi->ifi_ibytes;
+             else
+               *in += 0;
+
+             if (ifi->ifi_obytes)
+               *out += ifi->ifi_obytes;
+             else
+               *out += 0;
+         }
+     }
+   close(sock);
+}
+#endif
+
+static void bsd_network_status(results_t *results)
+{
+        unsigned long first_in = 0, first_out = 0;
+        unsigned long last_in = 0, last_out = 0;
+#if defined(__OpenBSD__)
+        _openbsd_generic_network_status(&first_in, &first_out);
+        usleep(1000000);
+        _openbsd_generic_network_status(&last_in, &last_out;
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+        _freebsd_generic_network_status(&first_in, &first_out);
+        usleep(1000000);
+        _freebsd_generic_network_status(&last_in, &last_out);
+#endif
+   results->incoming = last_in - first_in;
+   results->outgoing = last_out - first_out;
+}
+
 static int percentage(int value, int max)
 {
     double avg = (max / 100.0);
@@ -778,6 +892,24 @@ static void display_statusline(results_t * results, int *order, int count)
         if (flags & RESULTS_TMP) {
             if (results->temperature != INVALID_TEMP)
                 printf(" [T]: %dC", results->temperature);
+        }
+
+        if (flags & RESULTS_NET) {
+                const char *unit = "B/s";
+                double incoming = results->incoming;
+                double outgoing = results->outgoing;
+
+                if ((incoming > 1048576)|| (outgoing > 1048576)) {
+                        incoming = incoming / 1048576;
+                        outgoing = outgoing / 1048576;
+                        unit = "MB/s";
+                } else if (((incoming > 1024) && (incoming < 1048576)) ||
+                           ((outgoing > 1024) && (outgoing < 1048576))) {
+                        incoming /= 1024;
+                        outgoing /= 1024;
+                        unit = "KB/s";
+                }
+               printf(" [NET] %.2f/%.2f %s", incoming, outgoing, unit);
         }
 
         if (flags & RESULTS_AUD) {
@@ -861,6 +993,11 @@ static void results_temperature(int temp)
     printf("%d\n", temp);
 }
 
+static void results_network(results_t *results)
+{
+    printf("%lu %lu\n", results->incoming, results->outgoing);
+}
+
 static void results_mixer(mixer_t * mixer)
 {
     if (!mixer->enabled)
@@ -882,6 +1019,8 @@ static void display_verbose(results_t * results, int *order, int count)
             results_power(&results->power);
         else if (flags & RESULTS_TMP)
             results_temperature(results->temperature);
+        else if (flags & RESULTS_NET)
+            results_network(results);
         else if (flags & RESULTS_AUD)
             results_mixer(&results->mixer);
     }
@@ -909,6 +1048,8 @@ int main(int argc, char **argv)
                    "        Show all CPU cores and usage.\n"
                    "      -k (KB) -m (MB) -g (GB)\n"
                    "        Show memory usage (unit).\n"
+                   "      -n\n"
+                   "        Show network usage.\n"
                    "      -p\n"
                    "        Show power status (ac and battery percentage).\n"
                    "      -t\n"
@@ -940,15 +1081,18 @@ int main(int argc, char **argv)
             order[j] |= RESULTS_TMP;
         else if (!strcasecmp(argv[i], "-a"))
             order[j] |= RESULTS_AUD;
+        else if (!strcasecmp(argv[i], "-n"))
+            order[j] |= RESULTS_NET;
         else if (!strcasecmp(argv[i], "-s")) {
             statusline = true;
+            continue;
         }
         flags |= order[j++];
     }
 
     if (flags == 0) {
-        flags |= RESULTS_ALL;
-        order[0] |= RESULTS_ALL | RESULTS_MEM_MB;
+        flags |= RESULTS_DEFAULT;
+        order[0] |= RESULTS_DEFAULT | RESULTS_MEM_MB;
         statusline = true;
     }
 
@@ -971,6 +1115,9 @@ int main(int argc, char **argv)
 
     if (flags & RESULTS_AUD)
         bsd_mixer_state_master(&results.mixer);
+
+    if (flags & RESULTS_NET)
+        bsd_network_status(&results);
 
     if (statusline)
         display_statusline(&results, order, j ? j : 1);
