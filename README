@@ -1,7 +1,7 @@
 # BSD sensors (tingle)
 
-# Query CPU, memory, power, audio and temperature
-  sensors.
+# Query CPU, memory, network, power, audio and
+  temperature sensors.
 
 Supporting FreeBSD, DragonFlyBSD and OpenBSD.
 
