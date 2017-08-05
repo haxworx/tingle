@@ -730,24 +730,6 @@ static void bsd_power_state(power_t * power)
 }
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
-
-static int get_ifmib_general(int row, struct ifmibdata *data)
-{
-    int mib[6];
-    size_t len;
-
-    mib[0] = CTL_NET;
-    mib[1] = PF_LINK;
-    mib[2] = NETLINK_GENERIC;
-    mib[3] = IFMIB_IFDATA;
-    mib[4] = row;
-    mib[5] = IFDATA_GENERAL;
-
-    len = sizeof(*data);
-
-    return sysctl(mib, 6, data, &len, NULL, 0);
-}
-
 static void
 _freebsd_generic_network_status(unsigned long int *in,
                                 unsigned long int *out)
@@ -756,6 +738,7 @@ _freebsd_generic_network_status(unsigned long int *in,
     size_t len;
     int i, count;
     len = sizeof(count);
+
     if (sysctlbyname
         ("net.link.generic.system.ifcount", &count, &len, NULL, 0) < 0)
         return;
@@ -765,7 +748,9 @@ _freebsd_generic_network_status(unsigned long int *in,
         return;
 
     for (i = 1; i <= count; i++) {
-        get_ifmib_general(i, ifmd);
+        int mib[] = { CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, i, IFDATA_GENERAL };
+        len = sizeof(*ifmd);
+        if (sysctl(mib, 6, ifmd, &len, NULL, 0) < 0) continue;
         if (!strcmp(ifmd->ifmd_name, "lo0"))
             continue;
         *in += ifmd->ifmd_data.ifi_ibytes;
@@ -773,7 +758,6 @@ _freebsd_generic_network_status(unsigned long int *in,
     }
     free(ifmd);
 }
-
 #endif
 
 #if defined(__OpenBSD__)
