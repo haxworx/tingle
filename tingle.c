@@ -784,16 +784,15 @@ _openbsd_generic_network_status(unsigned long int *in,
             return;
 
         struct if_data *const ifi = &if_data;
-        if (ifi->ifi_type == IFT_ETHER || ifi->ifi_type == IFT_IEEE80211) {
+        if (ifi->ifi_type == IFT_ETHER ||
+            ifi->ifi_type == IFT_FASTETHER ||
+            ifi->ifi_type == IFT_GIGABITETHERNET ||
+	    ifi->ifi_type == IFT_IEEE80211) {
             if (ifi->ifi_ibytes)
                 *in += ifi->ifi_ibytes;
-            else
-                *in += 0;
 
             if (ifi->ifi_obytes)
                 *out += ifi->ifi_obytes;
-            else
-                *out += 0;
         }
     }
     close(sock);
