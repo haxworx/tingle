@@ -40,7 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/sysctl.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-# include <net/if.h>
+#include <net/if.h>
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 # include <sys/swap.h>
@@ -49,7 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <sys/audioio.h>
 # include <net/if_types.h>
 # include <ifaddrs.h>
-#endif
+#e1ndif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 # include <net/if_mib.h>
