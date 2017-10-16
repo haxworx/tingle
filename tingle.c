@@ -49,7 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <sys/audioio.h>
 # include <net/if_types.h>
 # include <ifaddrs.h>
-#e1ndif
+#endif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 # include <net/if_mib.h>
