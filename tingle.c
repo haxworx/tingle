@@ -211,7 +211,6 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
     int j;
 #endif
 #if defined(__FreeBSD__) || defined(__DragonFly__)
-    size_t size;
     if (!ncpu)
         return;
     size = sizeof(unsigned long) * (CPU_STATES * ncpu);
