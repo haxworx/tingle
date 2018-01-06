@@ -4,7 +4,7 @@ All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-
+n
 1. Redistributions of source code must retain the above copyright notice, this
    list of conditions and the following disclaimer.
 2. Redistributions in binary form must reproduce the above copyright notice,
@@ -25,10 +25,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Visit: http://haxlab.org */
 /* Build : cc -lm (file) -o (output) */
+// TODO: Add Linux battery (no way to test atm).
 
+#define _DEFAULT_SOURCE 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -41,6 +44,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
+
+#if defined(__linux__)
+# include <sys/soundcard.h>
+#endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 # include <sys/swap.h>
@@ -133,7 +140,26 @@ struct results_t {
 static int cpu_count(void)
 {
     int cores = 0;
-#if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__linux__)
+    char buf[4096];
+    FILE *f;
+    int line = 0;
+
+    f = fopen("/proc/stat", "r");
+    if (!f) return 0;
+
+    while (fgets(buf, sizeof(buf), f)) {
+         if (line) {
+              if (!strncmp(buf, "cpu", 3))
+                cores++;
+              else
+                break;
+           }
+         line++;
+    }
+
+    fclose(f);
+#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
     size_t len;
     int mib[2] = { CTL_HW, HW_NCPU };
 
@@ -173,15 +199,19 @@ static void _memsize_kb_to_gb(unsigned long *bytes)
     *bytes = (unsigned int) *bytes >> 20;
 }
 
-static void _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
+static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 {
-    size_t size;
     int diff_total, diff_idle;
-    int i, j;
+    int i;
     double ratio, percent;
     unsigned long total, idle, used;
     cpu_core_t *core;
+#if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    size_t size;
+    int j;
+#endif
 #if defined(__FreeBSD__) || defined(__DragonFly__)
+    size_t size;
     if (!ncpu)
         return;
     size = sizeof(unsigned long) * (CPU_STATES * ncpu);
@@ -287,10 +317,50 @@ static void _bsd_cpuinfo(cpu_core_t ** cores, int ncpu)
             core->idle = idle;
         }
     }
+#elif defined(__linux__)
+    FILE *f;
+    char buf[8192], name[128];
+
+    f = fopen("/proc/stat", "r");
+    if (!f) return;
+
+    fread(buf, sizeof(buf), 1, f);
+    for (i = 0; i < ncpu; i++) {
+        core = cores[i];
+        snprintf(name, sizeof(name), "cpu%d", i);
+        char *line = strstr(buf, name);
+        if (line) {
+            line = strchr(line, ' ') + 1;
+            unsigned long cpu_times[4] = { 0 };
+
+            if (4 != sscanf(line, "%lu %lu %lu %lu", &cpu_times[0], &cpu_times[1], &cpu_times[2], &cpu_times[3]))
+                return;
+
+            total = cpu_times[0] + cpu_times[1] + cpu_times[2] + cpu_times[3];
+            idle = cpu_times[3];
+            diff_total = total - core->total;
+            if (diff_total == 0) diff_total = 1;
+
+            diff_idle = idle - core->idle;
+            ratio = diff_total / 100.0;
+            used = diff_total - diff_idle;
+            percent = used / ratio;
+
+            if (percent > 100)
+                percent = 100;
+            else if (percent < 0)
+                percent = 0;
+
+            core->percent = percent;
+            core->total = total;
+            core->idle = idle;
+        }
+    }
+    fclose(f);
 #endif
 }
 
-static cpu_core_t **bsd_cpuinfo(int *ncpu)
+static cpu_core_t **_cpuinfo_get(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -302,19 +372,80 @@ static cpu_core_t **bsd_cpuinfo(int *ncpu)
     for (i = 0; i < *ncpu; i++)
         cores[i] = calloc(1, sizeof(cpu_core_t));
 
-    _bsd_cpuinfo(cores, *ncpu);
+    _cpu_state_get(cores, *ncpu);
     usleep(1000000);
-    _bsd_cpuinfo(cores, *ncpu);
+    _cpu_state_get(cores, *ncpu);
 
     return (cores);
 }
 
-static void bsd_meminfo(meminfo_t * memory)
+
+static unsigned long
+_meminfo_parse_line(const char *line)
 {
+   char *p, *tok;
+
+   p = strchr(line, ':') + 1;
+   while (isspace(*p))
+       p++;
+   tok = strtok(p, " ");
+
+   return atol(tok);
+}
+
+static void _meminfo_get(meminfo_t * memory)
+{
+#if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__)
     size_t len = 0;
     int i = 0;
+#endif
     memset(memory, 0, sizeof(meminfo_t));
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__linux__)
+    FILE *f;
+    unsigned long swap_free = 0, tmp_free = 0, tmp_slab = 0;
+    char line[256];
+    int fields = 0;
+
+    f = fopen("/proc/meminfo", "r");
+    if (!f) return;
+
+    while (fgets(line, sizeof(line), f) != NULL) {
+        if (!strncmp("MemTotal:", line, 9)) {
+             memory->total = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("MemFree:", line, 8)) {
+             tmp_free = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("Cached:", line, 7)) {
+             memory->cached = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("Slab:", line, 5)) {
+             tmp_slab = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("Buffers:", line, 8)) {
+             memory->buffered = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("Shmem:", line, 6)) {
+             memory->shared = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("SwapTotal:", line, 10)) {
+             memory->swap_total = _meminfo_parse_line(line);
+             fields++;
+        } else if (!strncmp("SwapFree:", line, 9)) {
+             swap_free = _meminfo_parse_line(line);
+             fields++;
+        }
+
+        if (fields >= 8)
+          break;
+    }
+
+    memory->cached += tmp_slab;
+    memory->used = memory->total - tmp_free - memory->cached - memory->buffered;
+    memory->swap_used = memory->swap_total = swap_free;
+
+    fclose(f);
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
     int total_pages = 0, free_pages = 0, inactive_pages = 0;
     long int result = 0;
     int page_size = getpagesize();
@@ -439,7 +570,7 @@ static void bsd_meminfo(meminfo_t * memory)
 #endif
 }
 
-static int bsd_mixer_state_master(mixer_t * mixer)
+static int _mixer_get(mixer_t * mixer)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int i, fd, devn;
@@ -507,15 +638,20 @@ static int bsd_mixer_state_master(mixer_t * mixer)
     if (info)
         free(info);
 
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
     int bar;
     int fd = open("/dev/mixer", O_RDONLY);
     if (fd == -1)
         return (0);
-
+#if defined(__linux__)
     if ((ioctl(fd, MIXER_READ(0), &bar)) == -1) {
         return (0);
     }
+#else
+    if ((ioctl(fd, MIXER_READ(0), &bar)) == -1) {
+        return (0);
+    }
+#endif
     mixer->enabled = true;
     mixer->volume_left = bar & 0x7f;
     mixer->volume_right = (bar >> 8) & 0x7f;
@@ -524,7 +660,7 @@ static int bsd_mixer_state_master(mixer_t * mixer)
     return (mixer->enabled);
 }
 
-static void bsd_temperature_state(int *temperature)
+static void _tempinfo_get(int *temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -579,7 +715,7 @@ static void bsd_temperature_state(int *temperature)
 #endif
 }
 
-static int bsd_power_mibs_get(power_t * power)
+static int _power_battery_count_get(power_t * power)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     struct sensordev snsrdev;
@@ -681,7 +817,7 @@ static void _bsd_battery_state_get(power_t * power, int *mib)
 #endif
 }
 
-static void bsd_power_state(power_t * power)
+static void _power_battery_state_get(power_t * power)
 {
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -799,11 +935,41 @@ _openbsd_generic_network_status(unsigned long int *in,
 }
 #endif
 
-static void bsd_network_status(results_t * results)
+#if defined(__linux__)
+static void
+_linux_generic_network_status(unsigned long int *in,
+                              unsigned long int *out)
+{
+   FILE *f;
+   char buf[4096], dummy_s[256];
+   unsigned long int tmp_in, tmp_out, dummy;
+
+   f = fopen("/proc/net/dev", "r");
+   if (!f) return;
+
+   while (fgets(buf, sizeof(buf), f)) {
+       if (17 == sscanf(buf, "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu "
+                       "%lu %lu %lu %lu\n", dummy_s, &tmp_in, &dummy, &dummy,
+                       &dummy, &dummy, &dummy, &dummy, &dummy, &tmp_out, &dummy,
+                       &dummy, &dummy, &dummy, &dummy, &dummy, &dummy)) {
+           *in += tmp_in;
+           *out += tmp_out;
+       }
+   }
+
+   fclose(f);
+}
+#endif
+
+static void _network_transfer_get(results_t * results)
 {
     unsigned long first_in = 0, first_out = 0;
     unsigned long last_in = 0, last_out = 0;
-#if defined(__OpenBSD__)
+#if defined(__linux__)
+    _linux_generic_network_status(&first_in, &first_out);
+    usleep(1000000);
+    _linux_generic_network_status(&last_in, &last_out);
+#elif defined(__OpenBSD__)
     _openbsd_generic_network_status(&first_in, &first_out);
     usleep(1000000);
     _openbsd_generic_network_status(&last_in, &last_out);
@@ -824,7 +990,7 @@ static int percentage(int value, int max)
     return round(tmp);
 }
 
-static void display_statusline(results_t * results, int *order, int count)
+static void output_results_status_line(results_t * results, int *order, int count)
 {
     int i, j, flags;
 
@@ -903,7 +1069,10 @@ static void display_statusline(results_t * results, int *order, int count)
                     results->mixer.volume_right >
                     results->mixer.volume_left ? results->mixer.
                     volume_right : results->mixer.volume_left;
-#if defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__linux__)
+                uint8_t perc = percentage(level, 100);
+                printf(" [VOL]: %d%%", perc);
+#elif defined(__OpenBSD__) || defined(__NetBSD__)
                 uint8_t perc = percentage(level, 255);
                 printf(" [VOL]: %d%%", perc);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
@@ -991,7 +1160,7 @@ static void results_mixer(mixer_t * mixer)
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
-static void display_verbose(results_t * results, int *order, int count)
+static void output_results_verbose(results_t * results, int *order, int count)
 {
     int i, flags;
     for (i = 0; i < count; i++) {
@@ -1084,30 +1253,30 @@ int main(int argc, char **argv)
     memset(&results, 0, sizeof(results_t));
 
     if (flags & RESULTS_CPU)
-        results.cores = bsd_cpuinfo(&results.cpu_count);
+        results.cores = _cpuinfo_get(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
-        bsd_meminfo(&results.memory);
+        _meminfo_get(&results.memory);
 
     if (flags & RESULTS_PWR) {
-        have_battery = bsd_power_mibs_get(&results.power);
+        have_battery = _power_battery_count_get(&results.power);
         if (have_battery)
-            bsd_power_state(&results.power);
+            _power_battery_state_get(&results.power);
     }
 
     if (flags & RESULTS_TMP)
-        bsd_temperature_state(&results.temperature);
+        _tempinfo_get(&results.temperature);
 
     if (flags & RESULTS_AUD)
-        bsd_mixer_state_master(&results.mixer);
+        _mixer_get(&results.mixer);
 
     if (flags & RESULTS_NET)
-        bsd_network_status(&results);
+        _network_transfer_get(&results);
 
     if (statusline)
-        display_statusline(&results, order, j ? j : 1);
+        output_results_status_line(&results, order, j ? j : 1);
     else
-        display_verbose(&results, order, j);
+        output_results_verbose(&results, order, j);
 
     if (flags & RESULTS_CPU) {
         for (i = 0; i < results.cpu_count; i++)

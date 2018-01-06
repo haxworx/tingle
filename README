@@ -1,9 +1,9 @@
-# BSD sensors (tingle)
+# UNIX sensors (tingle)
 
 # Query CPU, memory, network, power, audio and
   temperature sensors.
 
-Supporting FreeBSD, DragonFlyBSD and OpenBSD.
+Supporting Linux, FreeBSD, DragonFlyBSD and OpenBSD.
 
 This can be used with pipes by other processes to
 query the hardware. Or just to display a status
