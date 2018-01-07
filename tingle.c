@@ -400,7 +400,7 @@ static cpu_core_t **_cpuinfo_get(int *ncpu)
     return (cores);
 }
 
-
+#if defined(__linux__)
 static unsigned long
 _meminfo_parse_line(const char *line)
 {
@@ -413,6 +413,7 @@ _meminfo_parse_line(const char *line)
 
    return atol(tok);
 }
+#endif
 
 static void _meminfo_get(meminfo_t * memory)
 {
