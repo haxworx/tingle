@@ -3,7 +3,7 @@
 # Query CPU, memory, network, power, audio and
   temperature sensors.
 
-Supporting Linux, FreeBSD, DragonFlyBSD and OpenBSD.
+Supporting Linux, OSX, FreeBSD, DragonFlyBSD and OpenBSD.
 
 This can be used with pipes by other processes to
 query the hardware. Or just to display a status
