@@ -318,12 +318,34 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
     }
 #elif defined(__linux__)
     FILE *f;
-    char buf[8192], name[128];
+    char *buf;
+    char byte[1], name[128];
+    size_t count, bytes = 0;
 
     f = fopen("/proc/stat", "r");
     if (!f) return;
 
-    fread(buf, sizeof(buf), 1, f);
+    int n = 1024;
+
+    buf = malloc(n * sizeof(byte) + 1);
+    if (!buf) exit(0 << 1);
+
+    while ((count = (fread(byte, sizeof(byte), 1, f))) > 0) {
+       bytes += sizeof(byte);
+       if (bytes == (n * sizeof(byte))) {
+          n *= 2;
+          char *tmp = realloc(buf, n * sizeof(byte) + 1);
+          if (!tmp) exit(1 << 1);
+          buf = tmp;
+       }
+       memcpy(&buf[bytes - sizeof(byte)], byte, sizeof(byte));
+    }
+
+    if (!feof(f)) exit (2 << 1);
+    fclose(f);
+
+    buf[bytes] = 0;
+
     for (i = 0; i < ncpu; i++) {
         core = cores[i];
         snprintf(name, sizeof(name), "cpu%d", i);
@@ -355,7 +377,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
             core->idle = idle;
         }
     }
-    fclose(f);
+    free(buf);
 #endif
 }
 
