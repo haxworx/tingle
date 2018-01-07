@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Visit: http://haxlab.org */
 /* Build : cc -lm (file) -o (output) */
-// TODO: Add Linux battery (no way to test atm).
+/* What a shitstorm this turned into! hah! */
 
 #define _DEFAULT_SOURCE 1
 #include <stdio.h>
@@ -44,6 +44,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
+
+#if defined(__APPLE__) && defined(__MACH__)
+# define __MacOS__ 1
+# include <mach/mach.h>
+# include <mach/vm_statistics.h>
+# include <mach/mach_types.h>
+# include <mach/mach_init.h>
+# include <mach/mach_host.h>
+# define CP_USER 0
+# define CP_SYS  1
+# define CP_IDLE 2
+# define CP_NICE 3
+#endif
 
 #if defined(__linux__)
 # include <sys/soundcard.h>
@@ -166,6 +179,8 @@ static int cpu_count(void)
     len = sizeof(cores);
     if (sysctl(mib, 2, &cores, &len, NULL, 0) < 0)
         return 0;
+#elif defined(__MacOS__)
+    return 1;
 #endif
     return cores;
 }
@@ -202,13 +217,12 @@ static void _memsize_kb_to_gb(unsigned long *bytes)
 static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 {
     int diff_total, diff_idle;
-    int i;
     double ratio, percent;
     unsigned long total, idle, used;
     cpu_core_t *core;
 #if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
     size_t size;
-    int j;
+    int i, j;
 #endif
 #if defined(__FreeBSD__) || defined(__DragonFly__)
     if (!ncpu)
@@ -321,6 +335,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
     char *buf;
     char byte[1], name[128];
     size_t count, bytes = 0;
+    int i;
 
     f = fopen("/proc/stat", "r");
     if (!f) return;
@@ -378,6 +393,33 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
         }
     }
     free(buf);
+#elif defined(__MacOS__)
+   mach_msg_type_number_t count;
+   host_cpu_load_info_data_t load;
+   mach_port_t mach_port;
+   core = cores[0];
+
+   count = HOST_CPU_LOAD_INFO_COUNT;
+   mach_port = mach_host_self();
+   if (host_statistics(mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&load, &count) != KERN_SUCCESS)
+     exit(3 << 1);
+
+   total = load.cpu_ticks[CP_USER] + load.cpu_ticks[CP_SYS] + load.cpu_ticks[CP_NICE] + load.cpu_ticks[CP_IDLE];
+   idle = load.cpu_ticks[CP_IDLE];
+
+   diff_total = total - core->total;
+   if (diff_total == 0) diff_total = 1;
+   diff_idle = idle - core->idle;
+   ratio = diff_total / 100.0;
+   used = diff_total - diff_idle;
+   percent = used / ratio;
+
+   if (percent > 100) percent = 100;
+   else if (percent < 0) percent = 0;
+
+   core->percent = percent;
+   core->total = total;
+   core->idle = idle;
 #endif
 }
 
@@ -589,6 +631,27 @@ static void _meminfo_get(meminfo_t * memory)
 
     memory->shared = (uvmexp.pagesize * uvmexp.wired);
     _memsize_bytes_to_kb(&memory->shared);
+#elif defined(__MacOS__)
+    int mib[2] = { CTL_HW, HW_MEMSIZE };
+    size_t total;
+    vm_size_t page_size;
+    mach_port_t mach_port;
+    mach_msg_type_number_t count;
+    vm_statistics64_data_t vm_stats;
+
+    size_t len = sizeof(size_t);
+    if (sysctl(mib, 2, &total, &len, NULL, 0) == -1)
+        return;
+    mach_port = mach_host_self();
+    count = sizeof(vm_stats) / sizeof(natural_t);
+
+    if (host_page_size(mach_port, &page_size) == KERN_SUCCESS &&
+        host_statistics64(mach_port, HOST_VM_INFO, (host_info64_t) &vm_stats, &count) == KERN_SUCCESS) {
+        memory->used = vm_stats.active_count + vm_stats.inactive_count + vm_stats.wire_count * page_size;
+    }
+    total >>= 10;
+    memory->total = total;
+    memory->used >>= 10;
 #endif
 }
 
@@ -1100,6 +1163,9 @@ static void output_results_status_line(results_t * results, int *order, int coun
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
                 uint8_t perc = percentage(level, 100);
                 printf(" [VOL]: %d%%", perc);
+#else
+                (void)level;
+                (void)percentage;
 #endif
             }
         }
