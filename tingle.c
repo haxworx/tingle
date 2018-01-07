@@ -423,7 +423,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 #endif
 }
 
-static cpu_core_t **_cpuinfo_get(int *ncpu)
+static cpu_core_t **_cpu_cores_get(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -856,7 +856,7 @@ static int _power_battery_count_get(power_t * power)
     return (power->battery_index);
 }
 
-static void _bsd_battery_state_get(power_t * power, int *mib)
+static void _battery_state_get(power_t * power, int *mib)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double last_full_charge = 0;
@@ -929,7 +929,7 @@ static void _power_battery_state_get(power_t * power)
 #endif
 
     for (i = 0; i < power->battery_index; i++)
-        _bsd_battery_state_get(power, power->bat_mibs[i]);
+        _battery_state_get(power, power->bat_mibs[i]);
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     double percent =
@@ -1008,7 +1008,8 @@ _openbsd_generic_network_status(unsigned long int *in,
         if (ifi->ifi_type == IFT_ETHER ||
             ifi->ifi_type == IFT_FASTETHER ||
             ifi->ifi_type == IFT_GIGABITETHERNET ||
-	    ifi->ifi_type == IFT_IEEE80211) {
+            ifi->ifi_type == IFT_IEEE80211) {
+
             if (ifi->ifi_ibytes)
                 *in += ifi->ifi_ibytes;
 
@@ -1075,7 +1076,7 @@ static int percentage(int value, int max)
     return round(tmp);
 }
 
-static void output_results_status_line(results_t * results, int *order, int count)
+static void results_status_line(results_t * results, int *order, int count)
 {
     int i, j, flags;
 
@@ -1248,7 +1249,7 @@ static void results_mixer(mixer_t * mixer)
     printf("%d %d\n", mixer->volume_left, mixer->volume_right);
 }
 
-static void output_results_verbose(results_t * results, int *order, int count)
+static void results_verbose(results_t * results, int *order, int count)
 {
     int i, flags;
     for (i = 0; i < count; i++) {
@@ -1341,7 +1342,7 @@ int main(int argc, char **argv)
     memset(&results, 0, sizeof(results_t));
 
     if (flags & RESULTS_CPU)
-        results.cores = _cpuinfo_get(&results.cpu_count);
+        results.cores = _cpu_cores_get(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
         _meminfo_get(&results.memory);
@@ -1362,9 +1363,9 @@ int main(int argc, char **argv)
         _network_transfer_get(&results);
 
     if (statusline)
-        output_results_status_line(&results, order, j ? j : 1);
+        results_status_line(&results, order, j ? j : 1);
     else
-        output_results_verbose(&results, order, j);
+        results_verbose(&results, order, j);
 
     if (flags & RESULTS_CPU) {
         for (i = 0; i < results.cpu_count; i++)
