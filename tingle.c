@@ -728,15 +728,11 @@ static int _mixer_get(mixer_t * mixer)
     int fd = open("/dev/mixer", O_RDONLY);
     if (fd == -1)
         return (0);
-#if defined(__linux__)
+
     if ((ioctl(fd, MIXER_READ(0), &bar)) == -1) {
         return (0);
     }
-#else
-    if ((ioctl(fd, MIXER_READ(0), &bar)) == -1) {
-        return (0);
-    }
-#endif
+
     mixer->enabled = true;
     mixer->volume_left = bar & 0x7f;
     mixer->volume_right = (bar >> 8) & 0x7f;
@@ -807,11 +803,6 @@ static int _power_battery_count_get(power_t * power)
     size_t sdlen = sizeof(struct sensordev);
     int mib[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
     int i, devn;
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
-    size_t len;
-#endif
-
-#if defined(__OpenBSD__) || defined(__NetBSD__)
     for (devn = 0;; devn++) {
         mib[2] = devn;
         if (sysctl(mib, 3, &snsrdev, &sdlen, NULL, 0) == -1) {
@@ -841,6 +832,7 @@ static int _power_battery_count_get(power_t * power)
         }
     }
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
+    size_t len;
     if ((sysctlbyname("hw.acpi.battery.life", NULL, &len, NULL, 0)) != -1) {
         power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
         sysctlnametomib("hw.acpi.battery.life",
