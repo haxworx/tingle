@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Build : cc -lm (file) -o (output) */
 /* What a shitstorm this turned into! hah! */
 
-#define _DEFAULT_SOURCE 1
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
