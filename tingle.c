@@ -752,13 +752,10 @@ static void _tempinfo_get(int *temperature)
             else
                 continue;
         }
-        if (!strcmp("cpu0", snsrdev.xname)) {
-            //sensor_name = strdup("cpu0");
+        if (!strcmp("cpu0", snsrdev.xname))
             break;
-        } else if (!strcmp("km0", snsrdev.xname)) {
-            //sensor_name = strdup("km0");
+        else if (!strcmp("km0", snsrdev.xname))
             break;
-        }
     }
 
     for (numt = 0; numt < snsrdev.maxnumt[SENSOR_TEMP]; numt++) {
