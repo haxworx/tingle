@@ -46,16 +46,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <net/if.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
-# define __MacOS__ 1
+#define __MacOS__
 # include <mach/mach.h>
 # include <mach/vm_statistics.h>
 # include <mach/mach_types.h>
 # include <mach/mach_init.h>
 # include <mach/mach_host.h>
-# define CP_USER 0
-# define CP_SYS  1
-# define CP_IDLE 2
-# define CP_NICE 3
+# include <net/if_mib.h>
 #endif
 
 #if defined(__linux__)
@@ -63,6 +60,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
+# define CPU_STATES 6
 # include <sys/swap.h>
 # include <sys/mount.h>
 # include <sys/sensors.h>
@@ -72,17 +70,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
-# include <net/if_mib.h>
-# include <sys/soundcard.h>
-# include <vm/vm_param.h>
-#endif
-
-#if defined(__OpenBSD__) || defined(__NetBSD__)
-# define CPU_STATES 6
-#endif
-
-#if defined(__FreeBSD__) || defined(__DragonFly__)
 # define CPU_STATES 5
+# include <net/if_mib.h>
+# include <vm/vm_param.h>
+# include <sys/soundcard.h>
 #endif
 
 #define MAX_BATTERIES 5
@@ -404,8 +395,8 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
    if (host_statistics(mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&load, &count) != KERN_SUCCESS)
      exit(3 << 1);
 
-   total = load.cpu_ticks[CP_USER] + load.cpu_ticks[CP_SYS] + load.cpu_ticks[CP_NICE] + load.cpu_ticks[CP_IDLE];
-   idle = load.cpu_ticks[CP_IDLE];
+   total = load.cpu_ticks[0] + load.cpu_ticks[1] + load.cpu_ticks[2] + load.cpu_ticks[3];
+   idle = load.cpu_ticks[2];
 
    diff_total = total - core->total;
    if (diff_total == 0) diff_total = 1;
@@ -737,6 +728,7 @@ static int _mixer_get(mixer_t * mixer)
     mixer->volume_left = bar & 0x7f;
     mixer->volume_right = (bar >> 8) & 0x7f;
     close(fd);
+#elif defined(__MacOS__)
 #endif
     return (mixer->enabled);
 }
@@ -942,7 +934,7 @@ static void _power_battery_state_get(power_t * power)
         free(power->bat_mibs[i]);
 }
 
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__MacOS__) || defined(__FreeBSD__) || defined(__DragonFly__)
 static void
 _freebsd_generic_network_status(unsigned long int *in,
                                 unsigned long int *out)
@@ -1051,7 +1043,7 @@ static void _network_transfer_get(results_t * results)
     _openbsd_generic_network_status(&first_in, &first_out);
     usleep(1000000);
     _openbsd_generic_network_status(&last_in, &last_out);
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
+#elif defined(__MacOS__) || defined(__FreeBSD__) || defined(__DragonFly__)
     _freebsd_generic_network_status(&first_in, &first_out);
     usleep(1000000);
     _freebsd_generic_network_status(&last_in, &last_out);
@@ -1147,14 +1139,11 @@ static void results_status_line(results_t * results, int *order, int count)
                     results->mixer.volume_right >
                     results->mixer.volume_left ? results->mixer.
                     volume_right : results->mixer.volume_left;
-#if defined(__linux__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
                 uint8_t perc = percentage(level, 100);
                 printf(" [VOL]: %d%%", perc);
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
                 uint8_t perc = percentage(level, 255);
-                printf(" [VOL]: %d%%", perc);
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
-                uint8_t perc = percentage(level, 100);
                 printf(" [VOL]: %d%%", perc);
 #else
                 (void)level;
