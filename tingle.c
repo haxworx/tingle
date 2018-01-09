@@ -55,12 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <net/if_mib.h>
 #endif
 
-#if defined(__linux__)
-# include <sys/soundcard.h>
-#endif
-
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-# define CPU_STATES 6
 # include <sys/swap.h>
 # include <sys/mount.h>
 # include <sys/sensors.h>
@@ -70,26 +65,30 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
-# define CPU_STATES 5
 # include <net/if_mib.h>
 # include <vm/vm_param.h>
 # include <sys/soundcard.h>
 #endif
 
+#if defined(__linux__)
+# include <sys/soundcard.h>
+#endif
+
+#define CPU_STATES 5
+
 #define MAX_BATTERIES 5
 #define INVALID_TEMP -999
 
 /* Filter requests and results */
-#define RESULTS_CPU 0x01
-#define RESULTS_MEM 0x02
-#define RESULTS_PWR 0x04
-#define RESULTS_TMP 0x08
-#define RESULTS_AUD 0x10
-#define RESULTS_DEFAULT 0x1f
-#define RESULTS_NET 0x20
-/* Refine results */
-#define RESULTS_MEM_MB 0x40
-#define RESULTS_MEM_GB 0x80
+#define RESULTS_CPU       0x01
+#define RESULTS_MEM       0x02
+#define RESULTS_PWR       0x04
+#define RESULTS_TMP       0x08
+#define RESULTS_AUD       0x10
+#define RESULTS_DEFAULT   0x1f
+#define RESULTS_NET       0x20
+#define RESULTS_MEM_MB    0x40
+#define RESULTS_MEM_GB    0x80
 #define RESULTS_CPU_CORES 0x100
 
 typedef struct {
@@ -265,7 +264,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
             return;
 
         total = 0;
-        for (j = 0; j < CPU_STATES - 1; j++)
+        for (j = 0; j < CPU_STATES; j++)
             total += cpu_times[j];
 
         idle = cpu_times[4];
@@ -296,7 +295,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
                 return;
 
             total = 0;
-            for (j = 0; j < CPU_STATES - 1; j++)
+            for (j = 0; j < CPU_STATES; j++)
                 total += cpu_times[j];
 
             idle = cpu_times[4];
