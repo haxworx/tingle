@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -108,6 +109,7 @@ typedef struct {
 } meminfo_t;
 
 typedef struct {
+    char battery_names[MAX_BATTERIES];
     int *bat_mibs[MAX_BATTERIES];
     int ac_mibs[5];
     bool have_ac;
@@ -139,6 +141,69 @@ struct results_t {
 
     int temperature;
 };
+
+static void _memsize_bytes_to_kb(unsigned long *bytes)
+{
+    *bytes = (unsigned int) *bytes >> 10;
+}
+
+#define _memsize_kb_to_mb _memsize_bytes_to_kb
+
+static void _memsize_kb_to_gb(unsigned long *bytes)
+{
+    *bytes = (unsigned int) *bytes >> 20;
+}
+
+#if defined(__linux__)
+static char * Fcontents(const char *path)
+{
+    char *buf;
+    char byte[1];
+    size_t count, bytes = 0;
+    FILE *f = fopen(path, "r");
+    if (!f) return NULL;
+
+    int n = 1024;
+
+    buf = malloc(n * sizeof(byte) + 1);
+    if (!buf) exit(0 << 1);
+
+    while ((count = (fread(byte, sizeof(byte), 1, f))) > 0) {
+       bytes += sizeof(byte);
+       if (bytes == (n * sizeof(byte))) {
+          n *= 2;
+          char *tmp = realloc(buf, n * sizeof(byte) + 1);
+          if (!tmp) exit(1 << 1);
+          buf = tmp;
+       }
+       memcpy(&buf[bytes - sizeof(byte)], byte, sizeof(byte));
+    }
+
+    if (!feof(f)) exit (2 << 1);
+    fclose(f);
+
+    buf[bytes] = 0;
+
+    return buf;
+}
+#endif
+
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+static long int
+_sysctlfromname(const char *name, void *mib, int depth, size_t * len)
+{
+    long int result;
+
+    if (sysctlnametomib(name, mib, len) < 0)
+        return -1;
+
+    *len = sizeof(result);
+    if (sysctl(mib, depth, &result, len, NULL, 0) < 0)
+        return -1;
+
+    return result;
+}
+#endif
 
 static int cpu_count(void)
 {
@@ -173,35 +238,6 @@ static int cpu_count(void)
     return 1;
 #endif
     return cores;
-}
-
-#if defined(__FreeBSD__) || defined(__DragonFly__)
-static long int
-_sysctlfromname(const char *name, void *mib, int depth, size_t * len)
-{
-    long int result;
-
-    if (sysctlnametomib(name, mib, len) < 0)
-        return -1;
-
-    *len = sizeof(result);
-    if (sysctl(mib, depth, &result, len, NULL, 0) < 0)
-        return -1;
-
-    return result;
-}
-#endif
-
-static void _memsize_bytes_to_kb(unsigned long *bytes)
-{
-    *bytes = (unsigned int) *bytes >> 10;
-}
-
-#define _memsize_kb_to_mb _memsize_bytes_to_kb
-
-static void _memsize_kb_to_gb(unsigned long *bytes)
-{
-    *bytes = (unsigned int) *bytes >> 20;
 }
 
 static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
@@ -321,35 +357,10 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
         }
     }
 #elif defined(__linux__)
-    FILE *f;
-    char *buf;
-    char byte[1], name[128];
-    size_t count, bytes = 0;
+    char *buf, name[128];
     int i;
 
-    f = fopen("/proc/stat", "r");
-    if (!f) return;
-
-    int n = 1024;
-
-    buf = malloc(n * sizeof(byte) + 1);
-    if (!buf) exit(0 << 1);
-
-    while ((count = (fread(byte, sizeof(byte), 1, f))) > 0) {
-       bytes += sizeof(byte);
-       if (bytes == (n * sizeof(byte))) {
-          n *= 2;
-          char *tmp = realloc(buf, n * sizeof(byte) + 1);
-          if (!tmp) exit(1 << 1);
-          buf = tmp;
-       }
-       memcpy(&buf[bytes - sizeof(byte)], byte, sizeof(byte));
-    }
-
-    if (!feof(f)) exit (2 << 1);
-    fclose(f);
-
-    buf[bytes] = 0;
+    buf = Fcontents("/proc/stat");
 
     for (i = 0; i < ncpu; i++) {
         core = cores[i];
@@ -732,7 +743,7 @@ static int _mixer_get(mixer_t * mixer)
     return (mixer->enabled);
 }
 
-static void _tempinfo_get(int *temperature)
+static void _temperature_get(int *temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
     int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -781,6 +792,36 @@ static void _tempinfo_get(int *temperature)
         *temperature = (value - 2732) / 10;
     } else
         *temperature = INVALID_TEMP;
+#elif defined(__linux__)
+    struct dirent *dh;
+    DIR *dir;
+    char path[PATH_MAX];
+
+    dir = opendir("/sys/class/thermal");
+    if (!dir) return;
+
+    while ((dh = readdir(dir)) != NULL) {
+        if (!strncmp(dh->d_name, "thermal_zone", 12)) {
+            snprintf(path, sizeof(path), "/sys/class/thermal/%s/type", dh->d_name);
+	    char *type = Fcontents(path);
+	    if (type) {
+                /* This should ensure we get the highest available core temperature */
+		if (strstr(type, "_pkg_temp")) {
+	            snprintf(path, sizeof(path), "/sys/class/thermal/%s/temp", dh->d_name);
+                    char *value = Fcontents(path);
+		    if (value) {
+		        *temperature = atoi(value) / 1000;
+                        free(value);
+			free(type);
+			break;
+	            }
+	        }
+                free(type);
+            }
+        }
+    }
+
+    closedir(dir);
 #endif
 }
 
@@ -831,8 +872,22 @@ static int _power_battery_count_get(power_t * power)
     if ((sysctlbyname("hw.acpi.acline", NULL, &len, NULL, 0)) != -1) {
         sysctlnametomib("hw.acpi.acline", power->ac_mibs, &len);
     }
-#endif
+#elif defined(__linux__)
+    struct dirent *dh;
+    DIR *dir;
 
+    dir = opendir("/sys/class/power_supply");
+    if (!dir) return (0);
+
+    while ((dh = readdir(dir)) != NULL) {
+        if (dh->d_name[0] == '.') continue;
+	if (!strncmp(dh->d_name, "BAT", 3)) {
+            power->battery_names[power->battery_index++] = (char) dh->d_name[3];
+        }
+    }
+
+    closedir(dir);
+#endif
     return (power->battery_index);
 }
 
@@ -878,11 +933,49 @@ static void _battery_state_get(power_t * power, int *mib)
     size_t len = sizeof(value);
     if ((sysctl(mib, 4, &value, &len, NULL, 0)) != -1)
         power->percent = value;
+#elif defined(__linux__)
+    char path[PATH_MAX];
+    struct dirent *dh;
+    DIR *dir;
+    char *buf, *naming = NULL;
+    int i = 0;
+    unsigned long charge_full = 0;
+    unsigned long charge_current = 0;
 
+    while (power->battery_names[i] != '\0') {
+        snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c", power->battery_names[i]);
+	dir = opendir(path);
+	if (!dir) return;
+        while ((dh = readdir(dir)) != NULL) {
+           if (!strcmp(dh->d_name, "energy_full")) {
+               naming = "energy"; break;
+           } else if (!strcmp(dh->d_name, "capacity_full")) {
+               naming = "capacity"; break;
+	   }
+	}
+	closedir(dir);
+	if (!naming) continue;
+        snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c/%s_full", power->battery_names[i], naming);
+        buf = Fcontents(path);
+	if (buf) {
+            charge_full = atol(buf);
+            free(buf);
+	}
+        snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c/%s_now", power->battery_names[i], naming);
+	buf = Fcontents(path);
+	if (buf) {
+            charge_current = atol(buf);
+	    free(buf);
+	}
+	power->last_full_charge += charge_full;
+	power->current_charge += charge_current;
+	naming = NULL;
+        i++;
+    }
 #endif
 }
 
-static void _power_battery_state_get(power_t * power)
+static void _power_state_get(power_t * power)
 {
     int i;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -892,6 +985,9 @@ static void _power_battery_state_get(power_t * power)
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     unsigned int value;
     size_t len;
+#elif defined(__linux__)
+    char *buf;
+    int have_ac = 0;
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -906,12 +1002,18 @@ static void _power_battery_state_get(power_t * power)
         return;
     }
     power->have_ac = value;
+#elif defined(__linux__)
+    buf = Fcontents("/sys/class/power_supply/AC/online");
+    if (buf) {
+        have_ac = atoi(buf);
+        free(buf);
+    }
 #endif
 
     for (i = 0; i < power->battery_index; i++)
         _battery_state_get(power, power->bat_mibs[i]);
 
-#if defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__OpenBSD__) || defined(__NetBSD__) || defined(__linux__)
     double percent =
         100 * (power->current_charge / power->last_full_charge);
 
@@ -1327,11 +1429,11 @@ int main(int argc, char **argv)
     if (flags & RESULTS_PWR) {
         have_battery = _power_battery_count_get(&results.power);
         if (have_battery)
-            _power_battery_state_get(&results.power);
+            _power_state_get(&results.power);
     }
 
     if (flags & RESULTS_TMP)
-        _tempinfo_get(&results.temperature);
+        _temperature_get(&results.temperature);
 
     if (flags & RESULTS_AUD)
         _mixer_get(&results.mixer);
