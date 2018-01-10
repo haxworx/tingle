@@ -109,14 +109,16 @@ typedef struct {
 } meminfo_t;
 
 typedef struct {
+    bool have_ac;
+    int battery_count;
+
+    double charge_full;
+    double charge_current;
+    uint8_t percent;
+
     char battery_names[MAX_BATTERIES];
     int *bat_mibs[MAX_BATTERIES];
     int ac_mibs[5];
-    bool have_ac;
-    int battery_index;
-    uint8_t percent;
-    double last_full_charge;
-    double current_charge;
 } power_t;
 
 typedef struct {
@@ -271,18 +273,14 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 
         diff_total = total - core->total;
         diff_idle = idle - core->idle;
-
-        if (diff_total == 0)
-            diff_total = 1;
+        if (diff_total == 0) diff_total = 1;
 
         ratio = diff_total / 100.0;
         used = diff_total - diff_idle;
-
         percent = used / ratio;
-        if (percent > 100)
-            percent = 100;
-        else if (percent < 0)
-            percent = 0;
+
+        if (percent > 100) percent = 100;
+        else if (percent < 0) percent = 0;
 
         core->percent = percent;
         core->total = total;
@@ -307,16 +305,14 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 
         diff_total = total - core->total;
         diff_idle = idle - core->idle;
-        if (diff_total == 0)
-            diff_total = 1;
+        if (diff_total == 0) diff_total = 1;
 
         ratio = diff_total / 100.0;
         used = diff_total - diff_idle;
         percent = used / ratio;
-        if (percent > 100)
-            percent = 100;
-        else if (percent < 0)
-            percent = 0;
+
+        if (percent > 100) percent = 100;
+        else if (percent < 0) percent = 0;
 
         core->percent = percent;
         core->total = total;
@@ -337,19 +333,15 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
             idle = cpu_times[4];
 
             diff_total = total - core->total;
-            if (diff_total == 0)
-                diff_total = 1;
+            if (diff_total == 0) diff_total = 1;
 
             diff_idle = idle - core->idle;
-
             ratio = diff_total / 100.0;
             used = diff_total - diff_idle;
             percent = used / ratio;
 
-            if (percent > 100)
-                percent = 100;
-            else if (percent < 0)
-                percent = 0;
+            if (percent > 100) percent = 100;
+            else if (percent < 0) percent = 0;
 
             core->percent = percent;
             core->total = total;
@@ -361,6 +353,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
     int i;
 
     buf = Fcontents("/proc/stat");
+    if (!buf) return;
 
     for (i = 0; i < ncpu; i++) {
         core = cores[i];
@@ -383,10 +376,8 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
             used = diff_total - diff_idle;
             percent = used / ratio;
 
-            if (percent > 100)
-                percent = 100;
-            else if (percent < 0)
-                percent = 0;
+            if (percent > 100) percent = 100;
+            else if (percent < 0) percent = 0;
 
             core->percent = percent;
             core->total = total;
@@ -403,7 +394,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
    count = HOST_CPU_LOAD_INFO_COUNT;
    mach_port = mach_host_self();
    if (host_statistics(mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&load, &count) != KERN_SUCCESS)
-     exit(3 << 1);
+     exit(4 << 1);
 
    total = load.cpu_ticks[0] + load.cpu_ticks[1] + load.cpu_ticks[2] + load.cpu_ticks[3];
    idle = load.cpu_ticks[2];
@@ -424,7 +415,7 @@ static void _cpu_state_get(cpu_core_t ** cores, int ncpu)
 #endif
 }
 
-static cpu_core_t **_cpu_cores_get(int *ncpu)
+static cpu_core_t **_cpu_cores_state_get(int *ncpu)
 {
     cpu_core_t **cores;
     int i;
@@ -845,9 +836,9 @@ static int _power_battery_count_get(power_t * power)
             char buf[64];
             snprintf(buf, sizeof(buf), "acpibat%d", i);
             if (!strcmp(buf, snsrdev.xname)) {
-                power->bat_mibs[power->battery_index] =
+                power->bat_mibs[power->battery_count] =
                     malloc(sizeof(int) * 5);
-                int *tmp = power->bat_mibs[power->battery_index++];
+                int *tmp = power->bat_mibs[power->battery_count++];
                 tmp[0] = mib[0];
                 tmp[1] = mib[1];
                 tmp[2] = mib[2];
@@ -863,10 +854,10 @@ static int _power_battery_count_get(power_t * power)
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     size_t len;
     if ((sysctlbyname("hw.acpi.battery.life", NULL, &len, NULL, 0)) != -1) {
-        power->bat_mibs[power->battery_index] = malloc(sizeof(int) * 5);
+        power->bat_mibs[power->battery_count] = malloc(sizeof(int) * 5);
         sysctlnametomib("hw.acpi.battery.life",
-                        power->bat_mibs[power->battery_index], &len);
-        power->battery_index = 1;
+                        power->bat_mibs[power->battery_count], &len);
+        power->battery_count = 1;
     }
 
     if ((sysctlbyname("hw.acpi.acline", NULL, &len, NULL, 0)) != -1) {
@@ -882,20 +873,20 @@ static int _power_battery_count_get(power_t * power)
     while ((dh = readdir(dir)) != NULL) {
         if (dh->d_name[0] == '.') continue;
 	if (!strncmp(dh->d_name, "BAT", 3)) {
-            power->battery_names[power->battery_index++] = (char) dh->d_name[3];
+            power->battery_names[power->battery_count++] = (char) dh->d_name[3];
         }
     }
 
     closedir(dir);
 #endif
-    return (power->battery_index);
+    return (power->battery_count);
 }
 
 static void _battery_state_get(power_t * power, int *mib)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
-    double last_full_charge = 0;
-    double current_charge = 0;
+    double charge_full = 0;
+    double charge_current = 0;
     size_t slen = sizeof(struct sensor);
     struct sensor snsr;
 
@@ -903,31 +894,31 @@ static void _battery_state_get(power_t * power, int *mib)
     mib[4] = 0;
 
     if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
-        last_full_charge = (double) snsr.value;
+        charge_full = (double) snsr.value;
 
     mib[3] = 7;
     mib[4] = 3;
 
     if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
-        current_charge = (double) snsr.value;
+        charge_current = (double) snsr.value;
 
     /* ACPI bug workaround... */
-    if (current_charge == 0 || last_full_charge == 0) {
+    if (charge_current == 0 || charge_full == 0) {
         mib[3] = 8;
         mib[4] = 0;
 
         if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
-            last_full_charge = (double) snsr.value;
+            charge_full = (double) snsr.value;
 
         mib[3] = 8;
         mib[4] = 3;
 
         if (sysctl(mib, 5, &snsr, &slen, NULL, 0) != -1)
-            current_charge = (double) snsr.value;
+            charge_current = (double) snsr.value;
     }
 
-    power->last_full_charge += last_full_charge;
-    power->current_charge += current_charge;
+    power->charge_full += charge_full;
+    power->charge_current += charge_current;
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
     unsigned int value;
     size_t len = sizeof(value);
@@ -967,8 +958,8 @@ static void _battery_state_get(power_t * power, int *mib)
             charge_current = atol(buf);
 	    free(buf);
 	}
-	power->last_full_charge += charge_full;
-	power->current_charge += charge_current;
+	power->charge_full += charge_full;
+	power->charge_current += charge_current;
 	naming = NULL;
         i++;
     }
@@ -1010,12 +1001,12 @@ static void _power_state_get(power_t * power)
     }
 #endif
 
-    for (i = 0; i < power->battery_index; i++)
+    for (i = 0; i < power->battery_count; i++)
         _battery_state_get(power, power->bat_mibs[i]);
 
 #if defined(__OpenBSD__) || defined(__NetBSD__) || defined(__linux__)
     double percent =
-        100 * (power->current_charge / power->last_full_charge);
+        100 * (power->charge_current / power->charge_full);
 
     power->percent = percent;
     power->have_ac = have_ac;
@@ -1028,7 +1019,7 @@ static void _power_state_get(power_t * power)
     power->percent = value;
 
 #endif
-    for (i = 0; i < power->battery_index; i++)
+    for (i = 0; i < power->battery_count; i++)
         free(power->bat_mibs[i]);
 }
 
@@ -1158,7 +1149,7 @@ static int percentage(int value, int max)
     return round(tmp);
 }
 
-static void results_status_line(results_t * results, int *order, int count)
+static void results_pretty(results_t * results, int *order, int count)
 {
     int i, j, flags;
 
@@ -1204,6 +1195,8 @@ static void results_status_line(results_t * results, int *order, int count)
         if (flags & RESULTS_PWR) {
             if (results->power.have_ac)
                 printf(" [AC]: %d%%", results->power.percent);
+            else if (results->power.battery_count == 0)
+                printf(" [DC]");
             else
                 printf(" [DC]: %d%%", results->power.percent);
         }
@@ -1352,7 +1345,7 @@ int main(int argc, char **argv)
 {
     results_t results;
     bool have_battery;
-    bool statusline = false;
+    bool status_line = false;
     int i, j = 0;
     int flags = 0;
     int order[argc];
@@ -1406,7 +1399,7 @@ int main(int argc, char **argv)
         else if (!strcasecmp(argv[i], "-n"))
             order[j] |= RESULTS_NET;
         else if (!strcasecmp(argv[i], "-s")) {
-            statusline = true;
+            status_line = true;
             continue;
         }
         flags |= order[j++];
@@ -1415,13 +1408,13 @@ int main(int argc, char **argv)
     if (flags == 0) {
         flags |= RESULTS_DEFAULT;
         order[0] |= RESULTS_DEFAULT | RESULTS_MEM_MB;
-        statusline = true;
+        status_line = true;
     }
 
     memset(&results, 0, sizeof(results_t));
 
     if (flags & RESULTS_CPU)
-        results.cores = _cpu_cores_get(&results.cpu_count);
+        results.cores = _cpu_cores_state_get(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
         _memory_usage_get(&results.memory);
@@ -1441,8 +1434,8 @@ int main(int argc, char **argv)
     if (flags & RESULTS_NET)
         _network_transfer_get(&results);
 
-    if (statusline)
-        results_status_line(&results, order, j ? j : 1);
+    if (status_line)
+        results_pretty(&results, order, j ? j : 1);
     else
         results_verbose(&results, order, j);
 
