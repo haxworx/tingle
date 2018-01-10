@@ -3,14 +3,45 @@
 # Query CPU, memory, network, power, audio and
   temperature sensors.
 
-Supporting Linux, OSX, FreeBSD, DragonFlyBSD and OpenBSD.
+Supporting Linux, FreeBSD, OpenBSD, Mac OS and DragonFlyBSD.
+
+It's also probably a useful reference for querying common
+system information on the most-common Unix-like operating
+systems.
 
 This can be used with pipes by other processes to
 query the hardware. Or just to display a status
 line in screen or tmux or some Xorg program.
 
+If I'd thought more about it I'd have made it modular, so
+apologies for the crust!
+
 Install:
 	make (or gmake)
+
+Usage: tingle [OPTIONS]
+   Where OPTIONS can be a combination of
+      -c
+        Show average CPU usage.
+      -C
+        Show all CPU cores and usage.
+      -k (KB) -m (MB) -g (GB)
+        Show memory usage (unit).
+      -n
+        Show network usage.
+      -p
+        Show power status (ac and battery percentage).
+      -t
+        Show temperature sensors (temperature in celcius).
+      -a
+        Display mixer values (system values).
+      -s
+        Show all in a nicely formatted status bar format.
+        This is the default behaviour with no arguments.
+        With other flags specify (in any order) which
+        components to display in the status bar.
+      -h | -help | --help
+        This help.
 
 Al Poole <netstar@gmail.com>
 

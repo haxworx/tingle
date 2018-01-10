@@ -86,8 +86,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RESULTS_PWR       0x04
 #define RESULTS_TMP       0x08
 #define RESULTS_AUD       0x10
-#define RESULTS_DEFAULT   0x1f
 #define RESULTS_NET       0x20
+#define RESULTS_DEFAULT   0x3f
 #define RESULTS_MEM_MB    0x40
 #define RESULTS_MEM_GB    0x80
 #define RESULTS_CPU_CORES 0x100
@@ -458,7 +458,7 @@ _meminfo_parse_line(const char *line)
 }
 #endif
 
-static void _meminfo_get(meminfo_t * memory)
+static void _memory_usage_get(meminfo_t * memory)
 {
 #if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__)
     size_t len = 0;
@@ -1424,7 +1424,7 @@ int main(int argc, char **argv)
         results.cores = _cpu_cores_get(&results.cpu_count);
 
     if (flags & RESULTS_MEM)
-        _meminfo_get(&results.memory);
+        _memory_usage_get(&results.memory);
 
     if (flags & RESULTS_PWR) {
         have_battery = _power_battery_count_get(&results.power);
