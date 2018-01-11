@@ -1019,8 +1019,8 @@ static void _power_state_get(power_t * power)
     power->percent = value;
 
 #endif
-    for (i = 0; i < power->battery_count; i++)
-        free(power->bat_mibs[i]);
+     for (i = 0; i < power->battery_count; i++)
+        if (power->bat_mibs[i]) free(power->bat_mibs[i]);
 }
 
 #if defined(__MacOS__) || defined(__FreeBSD__) || defined(__DragonFly__)
