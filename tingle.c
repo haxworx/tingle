@@ -818,7 +818,7 @@ out:
    snd_mixer_close(h);
 #elif defined(__MacOS__)
    AudioDeviceID id;
-   AudioObjectPropertyAddress prop, prop_vol;
+   AudioObjectPropertyAddress prop;
    float volume;
    unsigned int id_size = sizeof(id);
    unsigned int vol_size = sizeof(volume);
@@ -830,11 +830,11 @@ out:
    if (AudioHardwareServiceGetPropertyData(kAudioObjectSystemObject, &prop, 0, NULL, &id_size, &id))
      return (0);
 
-   prop_vol.mSelector = kAudioDevicePropertyVolumeScalar;
-   prop_vol.mScope = kAudioDevicePropertyScopeOutput;
-   prop_vol.mElement = 0;
+   prop.mSelector = kAudioDevicePropertyVolumeScalar;
+   prop.mScope = kAudioDevicePropertyScopeOutput;
+   prop.mElement = 0;
 
-   if (AudioHardwareServiceGetPropertyData(id, &prop_vol, 0, NULL, &vol_size, &volume))
+   if (AudioHardwareServiceGetPropertyData(id, &prop, 0, NULL, &vol_size, &volume))
      return (0);
 
    mixer->volume_left = mixer->volume_right = volume * 100;
