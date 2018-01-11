@@ -794,19 +794,19 @@ static void _temperature_get(int *temperature)
     while ((dh = readdir(dir)) != NULL) {
         if (!strncmp(dh->d_name, "thermal_zone", 12)) {
             snprintf(path, sizeof(path), "/sys/class/thermal/%s/type", dh->d_name);
-	    char *type = Fcontents(path);
-	    if (type) {
+            char *type = Fcontents(path);
+            if (type) {
                 /* This should ensure we get the highest available core temperature */
-		if (strstr(type, "_pkg_temp")) {
-	            snprintf(path, sizeof(path), "/sys/class/thermal/%s/temp", dh->d_name);
+                if (strstr(type, "_pkg_temp")) {
+                    snprintf(path, sizeof(path), "/sys/class/thermal/%s/temp", dh->d_name);
                     char *value = Fcontents(path);
-		    if (value) {
-		        *temperature = atoi(value) / 1000;
+                    if (value) {
+                        *temperature = atoi(value) / 1000;
                         free(value);
-			free(type);
-			break;
-	            }
-	        }
+                        free(type);
+                        break;
+                    }
+	               }
                 free(type);
             }
         }
@@ -872,7 +872,7 @@ static int _power_battery_count_get(power_t * power)
 
     while ((dh = readdir(dir)) != NULL) {
         if (dh->d_name[0] == '.') continue;
-	if (!strncmp(dh->d_name, "BAT", 3)) {
+        if (!strncmp(dh->d_name, "BAT", 3)) {
             power->battery_names[power->battery_count++] = (char) dh->d_name[3];
         }
     }
@@ -935,32 +935,32 @@ static void _battery_state_get(power_t * power, int *mib)
 
     while (power->battery_names[i] != '\0') {
         snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c", power->battery_names[i]);
-	dir = opendir(path);
-	if (!dir) return;
+        dir = opendir(path);
+        if (!dir) return;
         while ((dh = readdir(dir)) != NULL) {
-           if (!strcmp(dh->d_name, "energy_full")) {
-               naming = "energy"; break;
-           } else if (!strcmp(dh->d_name, "capacity_full")) {
-               naming = "capacity"; break;
-	   }
-	}
-	closedir(dir);
-	if (!naming) continue;
+            if (!strcmp(dh->d_name, "energy_full")) {
+                naming = "energy"; break;
+            } else if (!strcmp(dh->d_name, "capacity_full")) {
+                naming = "capacity"; break;
+            }
+        }
+        closedir(dir);
+        if (!naming) continue;
         snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c/%s_full", power->battery_names[i], naming);
         buf = Fcontents(path);
-	if (buf) {
+        if (buf) {
             charge_full = atol(buf);
             free(buf);
-	}
+        }
         snprintf(path, sizeof(path), "/sys/class/power_supply/BAT%c/%s_now", power->battery_names[i], naming);
-	buf = Fcontents(path);
-	if (buf) {
+        buf = Fcontents(path);
+        if (buf) {
             charge_current = atol(buf);
-	    free(buf);
-	}
-	power->charge_full += charge_full;
-	power->charge_current += charge_current;
-	naming = NULL;
+            free(buf);
+        }
+        power->charge_full += charge_full;
+        power->charge_current += charge_current;
+        naming = NULL;
         i++;
     }
 #endif
