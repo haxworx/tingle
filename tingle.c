@@ -1354,22 +1354,6 @@ results_pretty(results_t *results, int *order, int count)
              printf(" [MEM]: %lu/%lu%c", used, total, unit);
           }
 
-        if (flags & RESULTS_PWR)
-          {
-             if (results->power.have_ac)
-               printf(" [AC]: %d%%", results->power.percent);
-             else if (results->power.battery_count == 0)
-               printf(" [DC]");
-             else
-               printf(" [DC]: %d%%", results->power.percent);
-          }
-
-        if (flags & RESULTS_TMP)
-          {
-             if (results->temperature != INVALID_TEMP)
-               printf(" [T]: %dC", results->temperature);
-          }
-
         if (flags & RESULTS_NET)
           {
              const char *unit = "B/s";
@@ -1392,6 +1376,12 @@ results_pretty(results_t *results, int *order, int count)
              printf(" [NET] %.2f/%.2f %s", incoming, outgoing, unit);
           }
 
+        if (flags & RESULTS_TMP)
+          {
+             if (results->temperature != INVALID_TEMP)
+               printf(" [T]: %dC", results->temperature);
+          }
+
         if (flags & RESULTS_AUD)
           {
              if (results->mixer.enabled)
@@ -1409,6 +1399,17 @@ results_pretty(results_t *results, int *order, int count)
 #endif
                }
           }
+
+        if (flags & RESULTS_PWR)
+          {
+             if (results->power.have_ac)
+               printf(" [AC]: %d%%", results->power.percent);
+             else if (results->power.battery_count == 0)
+               printf(" [DC]");
+             else
+               printf(" [DC]: %d%%", results->power.percent);
+          }
+
      }
    printf("\n");
 }
