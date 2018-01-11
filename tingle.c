@@ -54,6 +54,7 @@
 # include <mach/mach_init.h>
 # include <mach/mach_host.h>
 # include <net/if_mib.h>
+# include <AudioToolBox/AudioServices.h>
 #endif
 
 #if defined(__OpenBSD__) || defined(__NetBSD__)
@@ -783,6 +784,29 @@ _mixer_get(mixer_t *mixer)
    mixer->volume_right = (bar >> 8) & 0x7f;
    close(fd);
 #elif defined(__MacOS__)
+   AudioDeviceID id;
+   AudioObjectPropertyAddress prop, prop_vol;
+   float volume;
+   unsigned int id_size = sizeof(id);
+   unsigned int vol_size = sizeof(volume);
+
+   prop.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
+   prop.mScope = kAudioObjectPropertyScopeGlobal;
+   prop.mElement = kAudioObjectPropertyElementMaster;
+
+   if (AudioHardwareServiceGetPropertyData(kAudioObjectSystemObject, &prop, 0, NULL, &id_size, &id))
+     return (0);
+
+   prop_vol.mSelector = kAudioDevicePropertyVolumeScalar;
+   prop_vol.mScope = kAudioDevicePropertyScopeOutput;
+   prop_vol.mElement = 0;
+
+   if (AudioHardwareServiceGetPropertyData(id, &prop_vol, 0, NULL, &vol_size, &volume))
+     return (0);
+
+   mixer->volume_left = mixer->volume_right = volume * 100;
+
+   mixer->enabled = true;
 #endif
    return mixer->enabled;
 }
@@ -847,6 +871,8 @@ _temperature_get(int *temperature)
    DIR *dir;
    char path[PATH_MAX];
 
+   *temperature = INVALID_TEMP;
+
    dir = opendir("/sys/class/thermal");
    if (!dir) return;
 
@@ -877,6 +903,8 @@ _temperature_get(int *temperature)
      }
 
    closedir(dir);
+#elif defined(__MacOS__)
+   *temperature = INVALID_TEMP;
 #endif
 }
 
@@ -1339,15 +1367,12 @@ results_pretty(results_t *results, int *order, int count)
                     results->mixer.volume_right >
                     results->mixer.volume_left ? results->mixer.
                     volume_right : results->mixer.volume_left;
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__MacOS__) || defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
                   uint8_t perc = percentage(level, 100);
                   printf(" [VOL]: %d%%", perc);
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
                   uint8_t perc = percentage(level, 255);
                   printf(" [VOL]: %d%%", perc);
-#else
-                  (void)level;
-                  (void)percentage;
 #endif
                }
           }
