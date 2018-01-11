@@ -76,6 +76,10 @@
 # include <sys/soundcard.h>
 #endif
 
+#if defined(HAVE_ALSA)
+# include <alsa/asoundlib.h>
+#endif
+
 #define CPU_STATES        5
 
 #define MAX_BATTERIES     5
@@ -768,7 +772,7 @@ _mixer_get(mixer_t *mixer)
    if (info)
      free(info);
 
-#elif defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__linux__) && !defined(HAVE_ALSA)
    int bar;
    int fd = open("/dev/mixer", O_RDONLY);
    if (fd == -1)
@@ -783,6 +787,35 @@ _mixer_get(mixer_t *mixer)
    mixer->volume_left = bar & 0x7f;
    mixer->volume_right = (bar >> 8) & 0x7f;
    close(fd);
+#elif defined(__linux__) && defined(HAVE_ALSA)
+   snd_mixer_t *h;
+   snd_mixer_elem_t *elem;
+   snd_mixer_selem_id_t *id;
+   long int value;
+   double volume;
+
+   snd_mixer_selem_id_alloca(&id);
+   snd_mixer_selem_id_set_index(id, 0);
+   snd_mixer_selem_id_set_name(id, "Master");
+
+   if ((snd_mixer_open(&h, 0)) == -1) return (0);
+   if ((snd_mixer_attach(h, "default")) == -1) return(0);
+   if ((snd_mixer_selem_register(h, NULL, NULL)) == -1) goto out;
+   if ((snd_mixer_load(h)) == -1) goto out;
+
+   if (!(elem = snd_mixer_find_selem(h, id))) goto out;
+
+   long int max, min;
+
+   snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+   snd_mixer_selem_get_playback_volume(elem, 0, &value);
+   double ratio = max - min / 100;
+   volume = value / ratio;
+
+   mixer->enabled = true;
+   mixer->volume_left = mixer->volume_right = volume * 100;
+out:
+   snd_mixer_close(h);
 #elif defined(__MacOS__)
    AudioDeviceID id;
    AudioObjectPropertyAddress prop, prop_vol;
