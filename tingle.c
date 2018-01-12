@@ -687,6 +687,7 @@ swap_out:
    mach_port_t mach_port;
    mach_msg_type_number_t count;
    vm_statistics64_data_t vm_stats;
+   struct xsw_usage xsu;
 
    size_t len = sizeof(size_t);
    if (sysctl(mib, 2, &total, &len, NULL, 0) == -1)
@@ -694,14 +695,28 @@ swap_out:
    mach_port = mach_host_self();
    count = sizeof(vm_stats) / sizeof(natural_t);
 
+   total >>= 10;
+   memory->total = total;
+
    if (host_page_size(mach_port, &page_size) == KERN_SUCCESS &&
        host_statistics64(mach_port, HOST_VM_INFO, (host_info64_t)&vm_stats, &count) == KERN_SUCCESS)
      {
         memory->used = vm_stats.active_count + vm_stats.inactive_count + vm_stats.wire_count * page_size;
+        memory->used >>= 10;
+        memory->cached = vm_stats.active_count * page_size;
+        memory->cached >>= 10;
+        memory->shared = vm_stats.wire_count * page_size;
+        memory->shared >>= 10;
+        memory->buffered = vm_stats.inactive_count * page_size;
+        memory->buffered >>= 10;
      }
-   total >>= 10;
-   memory->total = total;
-   memory->used >>= 10;
+
+   total = sizeof(xsu);
+   if (sysctlbyname("vm.swapusage", &xsu, &total, NULL, 0) != -1)
+     {
+        memory->swap_total = xsu.xsu_total;
+        memory->swap_used = xsu.xsu_used;
+     }
 #endif
 }
 
