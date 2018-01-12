@@ -249,15 +249,13 @@ cpu_count(void)
      }
 
    fclose(f);
-#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#elif defined(__MacOS__) || defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__) || defined(__NetBSD__)
    size_t len;
    int mib[2] = { CTL_HW, HW_NCPU };
 
    len = sizeof(cores);
    if (sysctl(mib, 2, &cores, &len, NULL, 0) < 0)
      return 0;
-#elif defined(__MacOS__)
-   return 1;
 #endif
    return cores;
 }
@@ -416,32 +414,39 @@ _cpu_state_get(cpu_core_t **cores, int ncpu)
    free(buf);
 #elif defined(__MacOS__)
    mach_msg_type_number_t count;
-   host_cpu_load_info_data_t load;
+   processor_cpu_load_info_t load;
    mach_port_t mach_port;
-   core = cores[0];
+   unsigned int cpu_count;
+   int i;
+
+   cpu_count = ncpu;
 
    count = HOST_CPU_LOAD_INFO_COUNT;
    mach_port = mach_host_self();
-   if (host_statistics(mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&load, &count) != KERN_SUCCESS)
+   if (host_processor_info(mach_port, PROCESSOR_CPU_LOAD_INFO, &cpu_count, (processor_info_array_t *)&load, &count) != KERN_SUCCESS)
      exit(4 << 1);
 
-   total = load.cpu_ticks[0] + load.cpu_ticks[1] + load.cpu_ticks[2] + load.cpu_ticks[3];
-   idle = load.cpu_ticks[2];
+   for (i = 0; i < ncpu; i++) {
+        core = cores[i];
 
-   diff_total = total - core->total;
-   if (diff_total == 0) diff_total = 1;
-   diff_idle = idle - core->idle;
-   ratio = diff_total / 100.0;
-   used = diff_total - diff_idle;
-   percent = used / ratio;
+        total = load[i].cpu_ticks[CPU_STATE_USER] + load[i].cpu_ticks[CPU_STATE_SYSTEM] + load[i].cpu_ticks[CPU_STATE_IDLE] + load[i].cpu_ticks[CPU_STATE_NICE];
+        idle = load[i].cpu_ticks[CPU_STATE_IDLE];
 
-   if (percent > 100) percent = 100;
-   else if (percent < 0)
-     percent = 0;
+        diff_total = total - core->total;
+        if (diff_total == 0) diff_total = 1;
+        diff_idle = idle - core->idle;
+        ratio = diff_total / 100.0;
+        used = diff_total - diff_idle;
+        percent = used / ratio;
 
-   core->percent = percent;
-   core->total = total;
-   core->idle = idle;
+        if (percent > 100) percent = 100;
+        else if (percent < 0)
+          percent = 0;
+
+        core->percent = percent;
+        core->total = total;
+        core->idle = idle;
+     }
 #endif
 }
 
