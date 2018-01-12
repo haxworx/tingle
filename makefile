@@ -1,6 +1,6 @@
 PROGRAM=tingle
 SOURCES=tingle.c
-CFLAGS=-O2 -Wall -pedantic -std=c99
+CFLAGS=-O2 -Wall -pedantic -std=c99 -lpthread
 LDFLAGS=-lm
 HAVE_ALSA := 0
 

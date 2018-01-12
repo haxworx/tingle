@@ -45,6 +45,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#include <pthread.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
 #define __MacOS__
@@ -1527,15 +1528,24 @@ results_verbose(results_t *results, int *order, int count)
      }
 }
 
+static void *_network_transfer_get_thread_cb(void *arg)
+{
+   results_t *results = arg;
+
+   _network_transfer_get(results);
+
+   return ((void *) 0);
+}
+
 int
 main(int argc, char **argv)
 {
+   void *ret = NULL;
    results_t results;
-   bool have_battery;
-   bool status_line = false;
-   int i, j = 0;
-   int flags = 0;
+   bool have_battery, status_line = false;
+   int i, j = 0, flags = 0, error = 0;
    int order[argc];
+   pthread_t tid;
 
    memset(&order, 0, sizeof(int) * (argc));
 
@@ -1603,11 +1613,22 @@ main(int argc, char **argv)
 
    memset(&results, 0, sizeof(results_t));
 
+   if (flags & RESULTS_NET)
+    {
+       error = pthread_create(&tid, NULL, _network_transfer_get_thread_cb, &results);
+       if (error)
+         _network_transfer_get(&results);
+    }
+
    if (flags & RESULTS_CPU)
-     results.cores = _cpu_cores_state_get(&results.cpu_count);
+     {
+        results.cores = _cpu_cores_state_get(&results.cpu_count);
+     }
 
    if (flags & RESULTS_MEM)
-     _memory_usage_get(&results.memory);
+     {
+        _memory_usage_get(&results.memory);
+     }
 
    if (flags & RESULTS_PWR)
      {
@@ -1617,23 +1638,35 @@ main(int argc, char **argv)
      }
 
    if (flags & RESULTS_TMP)
-     _temperature_get(&results.temperature);
+     {
+        _temperature_get(&results.temperature);
+     }
 
    if (flags & RESULTS_AUD)
-     _mixer_get(&results.mixer);
+     {
+        _mixer_get(&results.mixer);
+     }
 
-   if (flags & RESULTS_NET)
-     _network_transfer_get(&results);
+   if (flags & RESULTS_NET && !error)
+     {
+        pthread_join(tid, ret);
+     }
 
    if (status_line)
-     results_pretty(&results, order, j ? j : 1);
+     {
+        results_pretty(&results, order, j ? j : 1);
+     }
    else
-     results_verbose(&results, order, j);
+     {
+        results_verbose(&results, order, j);
+     }
 
    if (flags & RESULTS_CPU)
      {
         for (i = 0; i < results.cpu_count; i++)
-          free(results.cores[i]);
+          {
+             free(results.cores[i]);
+          }
         free(results.cores);
      }
 
