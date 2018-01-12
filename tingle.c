@@ -125,7 +125,7 @@ typedef struct
    double  charge_current;
    uint8_t percent;
 
-   char    battery_names[MAX_BATTERIES];
+   char    battery_names[256];
    int    *bat_mibs[MAX_BATTERIES];
    int     ac_mibs[5];
 } power_t;
@@ -721,7 +721,7 @@ swap_out:
 }
 
 static int
-_mixer_get(mixer_t *mixer)
+_mixer_master_volume_get(mixer_t *mixer)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
    int i, fd, devn;
@@ -866,7 +866,7 @@ out:
 }
 
 static void
-_temperature_get(int *temperature)
+_temperature_cpu_get(int *temperature)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)
    int mibs[5] = { CTL_HW, HW_SENSORS, 0, 0, 0 };
@@ -1654,12 +1654,12 @@ main(int argc, char **argv)
 
    if (flags & RESULTS_TMP)
      {
-        _temperature_get(&results.temperature);
+        _temperature_cpu_get(&results.temperature);
      }
 
    if (flags & RESULTS_AUD)
      {
-        _mixer_get(&results.mixer);
+        _mixer_master_volume_get(&results.mixer);
      }
 
    if (flags & RESULTS_NET && !error)
