@@ -49,10 +49,10 @@ sub mixer_levels_set {
 		$cmd = "mixer $new_left:$new_right"
 	} elsif ($OS eq "darwin") {
                 my $avg = $new_left > $new_right ? $new_left : $new_right;
-                $avg /= 10;
+                my $ratio = 7 / 100;
+                $avg = $avg * $ratio;
                 $cmd = "osascript -e 'set volume $avg'";
         }
-
 	return system($cmd);
 }
 
@@ -77,7 +77,7 @@ sub main {
 		Error("couldn't get current volumes");
 	}
 
-	$left -= $dec; $right -= $dec;
+        $left -= $dec; $right -= $dec;
 	$left += $inc; $right += $inc; 
 
 	if ($OS eq "darwin" || $OS eq "freebsd" || $OS eq "dragonfly") {
@@ -90,5 +90,5 @@ sub main {
 	return mixer_levels_set($left, $right);
 }
 
-main(@ARGV);
+exit(main(@ARGV));
 
