@@ -49,6 +49,7 @@ sub mixer_levels_get {
           {
              $$right = $1;
           }
+
         if ($line =~ m/\Aoutput\svolume:(\d+),/)
           {
              $$left = $$right = $1;
@@ -68,6 +69,8 @@ sub mixer_levels_set {
    my ($new_left, $new_right) = @_;
    my $cmd = "";
 
+   close (STDOUT);
+
    if ($OS eq "openbsd" || $OS eq "netbsd")
      {
         $cmd = "mixerctl outputs.master=$new_left,$new_right";
@@ -85,7 +88,6 @@ sub mixer_levels_set {
      }
    elsif ($OS eq "linux")
      {
-        close (STDOUT);
         my $greatest = $new_left > $new_right ? $new_left : $new_right;
         $cmd = "amixer set \"Master\" $greatest%";
      }
