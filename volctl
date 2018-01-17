@@ -10,7 +10,7 @@ sub Error {
 
    print STDERR "Error: $str\n";
 
-   exit (1);
+   exit (0 << 1);
 }
 
 sub mixer_levels_get {
@@ -34,20 +34,24 @@ sub mixer_levels_get {
         $pipe_cmd = "amixer get Master|";
      }
 
-   open P, "$pipe_cmd";
+   open P, "$pipe_cmd" || die "Unable to determine mixer!\n";
    my @lines = <P>;
    close P;
+
+   my $have_mixer = 0;
 
    foreach my $line (@lines)
      {
         if ($line =~ m/Left:.*\[(\d+)%\]/)
           {
              $$left = $1;
+             $have_mixer = 1;
           }
 
         if ($line =~ m/Right:.*\[(\d+)%\]/)
           {
              $$right = $1;
+             $have_mixer = 1;
           }
 
         if ($line =~ m/\Aoutput\svolume:(\d+),/)
@@ -62,7 +66,8 @@ sub mixer_levels_get {
              return 1;
           }
      }
-   return 1;
+
+   return $have_mixer;
 }
 
 sub mixer_levels_set {
@@ -122,7 +127,7 @@ sub main {
    $left -= $dec; $right -= $dec;
    $left += $inc; $right += $inc;
 
-   if ($OS eq "darwin" || $OS eq "freebsd" || $OS eq "dragonfly")
+   if ($OS eq "linux" || $OS eq "darwin" || $OS eq "freebsd" || $OS eq "dragonfly")
      {
         if ($left < 0) { $left = 0; };
         if ($left > 100) { $left = 100; };
