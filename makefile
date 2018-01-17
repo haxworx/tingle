@@ -11,7 +11,7 @@ UNAME := $(shell uname -s)
 
 ifeq ($(UNAME),Darwin)
        CFLAGS += -framework AudioToolBox
-else if ($(UNAME),Linux)
+else ifeq ($(UNAME),Linux)
        ifeq ($(HAVE_ALSA),true)
                CFLAGS += -lasound -DHAVE_ALSA=1
        endif

@@ -77,7 +77,7 @@
 # include <sys/soundcard.h>
 #endif
 
-#if defined(HAVE_ALSA)
+#if defined(__linux__) && defined(HAVE_ALSA)
 # include <alsa/asoundlib.h>
 #endif
 
@@ -141,7 +141,7 @@ typedef struct results_t results_t;
 struct results_t
 {
    int           cpu_count;
-   cpu_core_t  **cores;
+   cpu_core_t    **cores;
 
    meminfo_t     memory;
 
