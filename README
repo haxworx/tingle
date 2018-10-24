@@ -3,7 +3,7 @@
 # Query CPU, memory, network, power, audio and
   temperature sensors.
 
-Supporting Linux, FreeBSD, OpenBSD, Mac OS and DragonFlyBSD.
+Supporting Linux, FreeBSD, OpenBSD, macOS and DragonFlyBSD.
 
 It's also probably a useful reference for querying common
 system information on the most-common Unix-like operating
