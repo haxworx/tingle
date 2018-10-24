@@ -848,14 +848,14 @@ out:
    prop.mScope = kAudioObjectPropertyScopeGlobal;
    prop.mElement = kAudioObjectPropertyElementMaster;
 
-   if (AudioHardwareServiceGetPropertyData(kAudioObjectSystemObject, &prop, 0, NULL, &id_size, &id))
+   if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &prop, 0, NULL, &id_size, &id))
      return (0);
 
    prop.mSelector = kAudioDevicePropertyVolumeScalar;
    prop.mScope = kAudioDevicePropertyScopeOutput;
    prop.mElement = 0;
 
-   if (AudioHardwareServiceGetPropertyData(id, &prop, 0, NULL, &vol_size, &volume))
+   if (AudioObjectGetPropertyData(id, &prop, 0, NULL, &vol_size, &volume))
      return (0);
 
    mixer->volume_left = mixer->volume_right = volume * 100;
