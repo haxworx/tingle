@@ -182,7 +182,7 @@ Fcontents(const char *path)
    int n = 1024;
 
    buf = malloc(n * sizeof(byte) + 1);
-   if (!buf) exit(0 << 1);
+   if (!buf) return NULL;
 
    while ((count = (fread(byte, sizeof(byte), 1, f))) > 0)
      {
@@ -191,13 +191,13 @@ Fcontents(const char *path)
           {
              n *= 2;
              char *tmp = realloc(buf, n * sizeof(byte) + 1);
-             if (!tmp) exit(1 << 1);
+             if (!tmp) return NULL;
              buf = tmp;
           }
         memcpy(&buf[bytes - sizeof(byte)], byte, sizeof(byte));
      }
 
-   if (!feof(f)) exit(2 << 1);
+   if (!feof(f)) return NULL;
    fclose(f);
 
    buf[bytes] = 0;

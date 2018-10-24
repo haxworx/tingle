@@ -13,9 +13,6 @@ This can be used with pipes by other processes to
 query the hardware. Or just to display a status
 line in screen or tmux or some Xorg program.
 
-If I'd thought more about it I'd have made it modular, so
-apologies for the crust!
-
 Install:
 	make (or gmake)
 
