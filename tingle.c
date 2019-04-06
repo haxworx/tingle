@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, Al Poole <netstar@gmail.com>
+   Copyright (c) 2017, Alastair Poole <netstar@gmail.com>
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
@@ -1041,7 +1041,7 @@ _power_battery_count_get(power_t *power)
 
    power->batteries = malloc(power->battery_count * sizeof(bat_t **));
 
-   for (i = 0; i < power->battery_count; i++)
+   for (int i = 0; i < power->battery_count; i++)
      {
 	power->batteries[i] = calloc(1, sizeof(bat_t));
      }
@@ -1052,8 +1052,8 @@ _power_battery_count_get(power_t *power)
 static void
 _battery_state_get(power_t *power, int *mib)
 {
-   static int index = 0;
 #if defined(__OpenBSD__) || defined(__NetBSD__)
+   static int index = 0;
    double charge_full = 0;
    double charge_current = 0;
    size_t slen = sizeof(struct sensor);
@@ -1094,7 +1094,7 @@ _battery_state_get(power_t *power, int *mib)
    unsigned int value;
    size_t len = sizeof(value);
    if ((sysctl(mib, 4, &value, &len, NULL, 0)) != -1)
-     power->percent = value;
+     power->batteries[0]->percent = value;
 #elif defined(__linux__)
    char path[PATH_MAX];
    struct dirent *dh;
@@ -1136,7 +1136,7 @@ _battery_state_get(power_t *power, int *mib)
              charge_current = atol(buf);
              free(buf);
           }
-        power->battteries[i]->charge_full = charge_full;
+        power->batteries[i]->charge_full = charge_full;
         power->batteries[i]->charge_current = charge_current;
         naming = NULL;
         i++;
@@ -1200,7 +1200,7 @@ _power_state_get(power_t *power)
         return;
      }
 
-   power->percent = value;
+   power->batteries[0]->percent = value;
 
 #endif
    for (i = 0; i < power->battery_count; i++)
