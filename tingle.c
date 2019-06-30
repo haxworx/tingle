@@ -22,11 +22,7 @@
    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-/* Visit: http://haxlab.org */
-/* Build : cc -lm (file) -o (output) */
-/* What a shitstorm this turned into! hah! */
-
+#define VERSION "0.9.0"
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -318,7 +314,9 @@ _cpu_state_get(cpu_core_t **cores, int ncpu)
         core->idle = idle;
      }
 #elif defined(__OpenBSD__)
-   struct cpustats cpu_times[CPU_STATES];
+   static struct cpustats cpu_times[CPU_STATES];
+   static int cpu_time_mib[] = { CTL_KERN, KERN_CPUSTATS, 0 };
+
    memset(&cpu_times, 0, CPU_STATES * sizeof(struct cpustats));
    if (!ncpu)
      return;
@@ -326,7 +324,6 @@ _cpu_state_get(cpu_core_t **cores, int ncpu)
    for (i = 0; i < ncpu; i++)
      {
         core = cores[i];
-        int cpu_time_mib[] = { CTL_KERN, KERN_CPUSTATS, 0 };
         size = sizeof(struct cpustats);
         cpu_time_mib[2] = i;
         if (sysctl(cpu_time_mib, 3, &cpu_times[i], &size, NULL, 0) < 0)
@@ -1593,7 +1590,17 @@ main(int argc, char **argv)
                     "        This is the default behaviour with no arguments.\n"
                     "        With other flags specify (in any order) which\n"
                     "        components to display in the status bar.\n"
+                    "      -v | -version | --version\n"
+                    "        Version information.\n"
                     "      -h | -help | --help\n" "        This help.\n");
+             exit(0);
+          }
+
+        if ((!strcmp(argv[i], "-v")) ||
+            (!strcmp(argv[i], "-version")) || (!strcmp(argv[i], "--version")))
+          {
+             printf("(c) Copyright 2017-2019. Alastair Poole (see COPYING for details)\n");
+             printf("Tingle version %s\n", VERSION);
              exit(0);
           }
 
